@@ -82,13 +82,14 @@
         UI.sheet(
             '<div style="font-size:44px">👋</div><h2>반가워요! 뭐라고 불러드릴까요?</h2><p class="muted small">매일 30분, 상황별 회화로 영어 말문을 틔워 드릴게요.</p>' +
             '<input class="field" style="margin-top:14px" maxlength="12" placeholder="이름 또는 닉네임" value="' + UI.esc(current) + '">' +
-            '<div class="btn-row" style="margin-top:14px"><button class="btn btn-soft" data-x="skip">나중에</button><button class="btn btn-primary" data-x="ok">시작하기</button></div>',
+            '<div class="btn-row" style="margin-top:14px"><button class="btn btn-soft" data-x="skip">나중에</button><button class="btn btn-primary" data-x="ok">시작하기</button></div>' +
+            '<button class="btn btn-ghost btn-block btn-s" style="margin-top:8px" data-x="sync">☁️ 다른 기기에서 하던 기록 가져오기</button>',
             function (sh, close) {
                 var input = sh.querySelector("input");
                 setTimeout(function () { input.focus(); }, 300);
                 function done(save) {
                     Store.update(function (s) {
-                        if (save) s.profile.name = input.value.trim();
+                        if (save) { s.profile.name = input.value.trim(); s.profile.nameUpdatedAt = Date.now(); }
                         if (!s.profile.createdAt) s.profile.createdAt = Store.today();
                     });
                     close();
@@ -97,7 +98,14 @@
                 input.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) done(true); });
                 sh.addEventListener("click", function (e) {
                     var b = e.target.closest("[data-x]");
-                    if (b) done(b.dataset.x === "ok");
+                    if (!b) return;
+                    if (b.dataset.x === "sync") {
+                        done(false);
+                        location.hash = "#/me";
+                        setTimeout(function () { var c = document.getElementById("sync"); if (c) c.scrollIntoView({ behavior: "smooth" }); }, 300);
+                        return;
+                    }
+                    done(b.dataset.x === "ok");
                 });
             }
         );
@@ -119,9 +127,16 @@
         document.addEventListener("visibilitychange", function () { if (!document.hidden && currentRoute && !currentRoute.immersive) route(); });
 
         route();
+        root.EEGistSync.start();
         if (!Store.get().profile.createdAt) askName();
     }
 
-    root.EEApp = { setTheme: setTheme, askName: askName, route: route };
+    // 동기화로 기록이 바뀌었을 때 화면 갱신. 학습 중인 화면은 건드리지 않는다
+    function refreshIfIdle() {
+        if (currentRoute && !currentRoute.immersive) route();
+        else if (main) renderNav();
+    }
+
+    root.EEApp = { setTheme: setTheme, askName: askName, route: route, refreshIfIdle: refreshIfIdle };
     document.addEventListener("DOMContentLoaded", boot);
 })(window);

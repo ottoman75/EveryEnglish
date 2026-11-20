@@ -11,6 +11,7 @@ npm start          # http://localhost:5173 (음성 인식은 localhost/https에�
 npm run check      # 챕터 검증 + 단위 테스트 — 변경 후 항상 실행
 node .claude/skills/ee-qa/scripts/probe-answers.js   # 정답 변형 누락 탐침
 npm run audio      # 원어민 녹음 생성/갱신 (최초 1회 npm run audio:setup)
+npm run stamp      # 배포 전: index.html 스크립트 주소에 ?v= 붙여 폰 캐시 무효화 → git push (GitHub Pages)
 ```
 
 ## 구조
@@ -20,6 +21,7 @@ npm run audio      # 원어민 녹음 생성/갱신 (최초 1회 npm run audio:s
 | `js/data/chapters/NN-id.js` | 챕터 데이터 (스키마: `.claude/skills/chapter-authoring/references/schema.md`) |
 | `js/core/` | 순수 로직(grader, srs, plan) + 저장(store) + 음성(speech) |
 | `js/app/actions.js` | 채점 결과 → 저장소 배선. 화면은 저장소를 직접 바꾸지 않는다 |
+| `js/core/sync.js`, `js/app/sync-gist.js` | 기기 간 기록 병합(순수) / GitHub 비공개 gist 전송 |
 | `js/app/views-*.js`, `main.js` | 화면과 해시 라우터 |
 | `tools/validate-chapters.js` | 챕터 스키마·index.html 누락·녹음 누락 검사 |
 | `tools/collect-speech.js`, `build-audio.py` | 앱이 읽는 문장 수집 → Kokoro 뉴럴 TTS로 `audio/*.m4a` + `js/data/audio-manifest.js` 생성 |

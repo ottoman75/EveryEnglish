@@ -31,6 +31,16 @@ description: "EveryEnglish 웹앱의 화면·UI·채점·저장 로직(index.htm
 - 한국어 기본 음성이 영어를 읽게 두지 않는다(억양이 완전히 틀린다). 영어 음성이 없으면 무음.
 - 속도 설정은 녹음 재생 속도(`playbackRate`, 음높이 유지)로 적용된다. 기본 0.95 = 원래 속도.
 
+## 동기화 (맥 ↔ 폰)
+
+- 공유 사본: 사용자 GitHub 비공개 gist `everyenglish-sync.json`. 토큰은 `everyenglish:sync` 키에만 두고 기록·백업에 넣지 않는다.
+- 병합 규칙은 `js/core/sync.js` 하나뿐이고 `tests/sync.test.js`가 지킨다(멱등, 기기별 장부, 최근 활동 우선, 삭제 표시).
+- 그래서 저장 필드를 바꿀 때 지켜야 할 것:
+  - 학습 시간·XP를 올리면 기기별 장부(`secondsByDevice`, `xpByDevice`)도 함께 올린다 — `actions.addXP`, `tick` 참고. 합계만 올리면 다음 병합에서 사라진다
+  - 오답·단어 항목을 바꾸면 `updatedAt = Date.now()`. 지우면 `tombstones[id]`
+  - 기기 전용 값(설정 등)은 `sync.js`의 `DEVICE_LOCAL_KEYS`에 넣는다
+- 배포 전 `npm run stamp` — 안 하면 폰이 옛 JS를 써서 새 필드를 모르는 채 동기화한다.
+
 ## 디자인 시스템 (`css/app.css`)
 
 - 색은 `:root` 토큰만 사용. 다크모드는 `prefers-color-scheme` + `[data-theme]` 두 경로 모두 정의되어 있다.

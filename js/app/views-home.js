@@ -193,6 +193,43 @@
             }).join("") + "</div></div>";
     }
 
+    function timeAgo(ms) {
+        if (!ms) return "아직 안 함";
+        var sec = Math.round((Date.now() - ms) / 1000);
+        if (sec < 60) return "방금";
+        if (sec < 3600) return Math.floor(sec / 60) + "분 전";
+        if (sec < 86400) return Math.floor(sec / 3600) + "시간 전";
+        return Math.floor(sec / 86400) + "일 전";
+    }
+
+    function syncCardHTML() {
+        var G = root.EEGistSync, st = G.status();
+        var head = '<div class="section-title" id="sync"><h2>기기 동기화</h2></div>';
+        if (G.isConnected()) {
+            var badge = st.state === "syncing" ? '<span class="badge brand">⟳ 동기화 중</span>'
+                : st.state === "ok" ? '<span class="badge ok">● 연결됨</span>'
+                    : '<span class="badge bad">⚠ 확인 필요</span>';
+            return head + '<div class="card stage">' +
+                '<div class="setting"><div><b>맥 · 폰 자동 동기화</b><span>' + (st.login ? "@" + esc(st.login) + " 비공개 gist · " : "") +
+                "마지막 동기화 " + timeAgo(st.lastSyncAt) + "</span>" +
+                (st.message ? '<span style="color:var(--bad)">' + esc(st.message) + "</span>" : "") + "</div>" + badge + "</div>" +
+                '<div class="btn-row" style="margin-top:12px"><button class="btn btn-soft btn-s" data-act="sync-now">지금 동기화</button>' +
+                '<button class="btn btn-ghost btn-s" data-act="sync-off">연결 해제</button></div>' +
+                '<p class="tiny faint" style="margin:10px 0 0">앱을 열 때, 학습 중 30초마다, 앱을 닫을 때 자동으로 맞춰요. 설정(목소리·속도)은 기기마다 따로예요.</p></div>';
+        }
+        return head + '<div class="card stage">' +
+            '<div class="bold" style="font-size:15px">☁️ 맥과 폰의 학습 기록을 자동으로 맞춰요</div>' +
+            '<p class="small muted" style="margin:6px 0 12px">내 GitHub의 비공개 gist 하나에 기록을 저장해요. 기기마다 한 번만 연결하면 돼요.</p>' +
+            '<ol class="small" style="margin:0 0 12px;padding-left:20px;line-height:1.7">' +
+            '<li><a href="' + G.TOKEN_URL + '" target="_blank" rel="noopener" style="color:var(--brand);font-weight:700">GitHub 토큰 만들기 ↗</a> — <b>gist</b>만 체크된 채로 열려요. 맨 아래 <b>Generate token</b></li>' +
+            "<li>만들어진 토큰(ghp_…)을 복사해 아래에 붙여넣기</li>" +
+            "<li>폰에서도 같은 토큰으로 한 번 더 연결</li></ol>" +
+            '<div class="row" style="gap:8px"><input class="field" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…" data-sync-token style="height:46px;font-family:var(--font-en)">' +
+            '<button class="btn btn-primary btn-s" style="height:46px" data-act="sync-connect">연결</button></div>' +
+            (st.message ? '<p class="small" style="color:var(--bad);margin:8px 0 0">' + esc(st.message) + "</p>" : "") +
+            '<p class="tiny faint" style="margin:10px 0 0">토큰은 이 기기 브라우저에만 저장되고 학습 기록·백업 파일에는 들어가지 않아요. gist 권한만 있어서 저장소나 계정 설정은 건드릴 수 없어요.</p></div>';
+    }
+
     // ---------------- 내 정보 ----------------
     function Me(el) {
         function render() {
@@ -235,6 +272,7 @@
                 '<div class="setting"><div><b>음성 인식</b><span>' + (root.EESpeech.canListen ? "사용 가능 — 마이크 버튼으로 말해 보세요" : "이 브라우저/주소에서는 사용할 수 없어요. 크롬·사파리에서 https 또는 localhost로 열어 주세요") + "</span></div></div>" +
                 "</div>" +
 
+                syncCardHTML() +
                 '<div class="section-title"><h2>데이터</h2></div>' +
                 '<div class="card stage">' +
                 '<div class="setting"><div><b>백업 내보내기</b><span>다른 기기로 옮길 때 사용</span></div><button class="btn btn-soft btn-s" data-act="export">내보내기</button></div>' +
@@ -252,6 +290,25 @@
                 return;
             }
             var act = t.dataset.act;
+            if (act === "sync-connect") {
+                var input = el.querySelector("[data-sync-token]");
+                t.disabled = true;
+                t.textContent = "연결 중…";
+                root.EEGistSync.connect(input.value).then(function () {
+                    UI.toast("연결했어요! 기록을 맞췄어요", "☁️");
+                    render();
+                }).catch(function () { render(); });
+                return;
+            }
+            if (act === "sync-now") {
+                t.disabled = true;
+                root.EEGistSync.syncNow().then(function (r) {
+                    UI.toast(r.error ? "동기화 실패: " + r.error.message : r.changed ? "다른 기기 기록을 가져왔어요" : "이미 최신이에요", r.error ? "⚠️" : "☁️");
+                    render();
+                });
+                return;
+            }
+            if (act === "sync-off") { root.EEGistSync.disconnect(); UI.toast("이 기기의 동기화를 껐어요", "☁️"); render(); return; }
             if (act === "preview-voice") root.EESpeech.speak("Hi there! What can I get for you?");
             if (act === "autospeak") { Store.update(function (s) { s.settings.autoSpeak = !s.settings.autoSpeak; }); render(); }
             if (act === "rename") root.EEApp.askName(render);

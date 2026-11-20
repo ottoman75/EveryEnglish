@@ -8,6 +8,7 @@
     "validate": "node tools/validate-chapters.js",
     "check": "npm run validate && npm test",
     "audio": "~/.cache/everyenglish-tts/venv/bin/python tools/build-audio.py",
-    "audio:setup": "sh tools/setup-tts.sh"
+    "audio:setup": "sh tools/setup-tts.sh",
+    "stamp": "node tools/stamp-version.js"
   }
 }

@@ -9,10 +9,15 @@
     var XP = { correct: 10, close: 7, wrong: 2, review: 8, word: 3, chapterBonus: 50, shadow: 4 };
     var HISTORY_LIMIT = 5;
 
+    // 합계와 이 기기 장부를 함께 올린다 (장부 = 동기화 병합의 기준)
     function addXP(state, n) {
+        var dev = Store.deviceId;
         state.xp = (state.xp || 0) + n;
+        state.xpByDevice = state.xpByDevice || {};
+        state.xpByDevice[dev] = (state.xpByDevice[dev] || 0) + n;
         var day = Store.dayRecord();
         day.xp = (day.xp || 0) + n;
+        day.xpByDevice[dev] = (day.xpByDevice[dev] || 0) + n;
     }
 
     /**
@@ -37,6 +42,7 @@
             next.strict = !!item.strict;
             next.blankEn = item.blankEn || "";
             next.history = [{ date: today, answer: userText }].concat((prev && prev.history) || []).slice(0, HISTORY_LIMIT);
+            next.updatedAt = Date.now();
             s.wrongNotes[item.id] = next;
         });
         return gained;
@@ -59,9 +65,11 @@
             var today = Store.today();
             if (early && pass) {
                 item.lastPracticed = today;
+                item.updatedAt = Date.now();
             } else {
                 var next = Srs.review(item, pass, today);
                 if (!pass) next.history = [{ date: today, answer: userText }].concat(item.history || []).slice(0, HISTORY_LIMIT);
+                next.updatedAt = Date.now();
                 s.wrongNotes[id] = next;
             }
             addXP(s, pass ? XP.review : XP.wrong);
@@ -70,7 +78,11 @@
     }
 
     function deleteNote(id) {
-        Store.update(function (s) { delete s.wrongNotes[id]; });
+        Store.update(function (s) {
+            delete s.wrongNotes[id];
+            s.tombstones = s.tombstones || {};
+            s.tombstones[id] = Date.now(); // 다른 기기에서 되살아나지 않게
+        });
     }
 
     function wordId(chapterId, word) { return chapterId + "::" + word; }
@@ -81,6 +93,7 @@
             var id = wordId(chapter.id, v.word);
             var next = Srs.markWrong(s.words[id], Store.today());
             s.words[id] = Object.assign(next, {
+                updatedAt: Date.now(),
                 chapterId: chapter.id, word: v.word, pos: v.pos, meaning: v.meaning, example: v.example, exampleKo: v.exampleKo
             });
         });
@@ -94,7 +107,7 @@
         Store.update(function (s) {
             var w = s.words[id];
             if (!w) return;
-            s.words[id] = Srs.review(w, pass, Store.today());
+            s.words[id] = Object.assign(Srs.review(w, pass, Store.today()), { updatedAt: Date.now() });
             addXP(s, pass ? XP.word : 1);
         });
     }
@@ -136,6 +149,7 @@
             Store.update(function () {
                 var day = Store.dayRecord();
                 day.seconds = (day.seconds || 0) + add;
+                day.secondsByDevice[Store.deviceId] = (day.secondsByDevice[Store.deviceId] || 0) + add;
             });
         }
     }
