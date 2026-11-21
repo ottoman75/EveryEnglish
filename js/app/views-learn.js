@@ -166,8 +166,16 @@
             host.innerHTML =
                 '<div class="stage"><div class="step-label">💬 롤플레이 ' + (step.i + 1) + " / " + ch.dialogues.length + "</div>" +
                 '<div class="scene-head"><b>' + esc(scene.title) + "</b><span>📍 " + esc(scene.setting) + "</span></div>" +
+                '<div class="avatar-host"></div>' +
                 '<div class="chat" aria-live="polite"></div><div class="composer-host"></div></div>';
             var chat = host.querySelector(".chat");
+            var avatar = root.EEAvatar ? root.EEAvatar.attach(host.querySelector(".avatar-host")) : null;
+            if (avatar) {
+                root.__eeAvatar = avatar; // 점검용
+                var firstPartner = scene.lines.find(function (l) { return l.speaker === "partner"; });
+                avatar.setSpeaker(ch.id + ":" + firstPartner.name, firstPartner.name);
+                cleanup.push(avatar.destroy);
+            }
             var composerHost = host.querySelector(".composer-host");
 
             function partnerBubble(line) {
@@ -175,7 +183,7 @@
                 m.className = "msg partner";
                 m.innerHTML = '<div class="avatar">' + ch.emoji + '</div><div class="bubble"><div class="name">' + esc(line.name) + "</div>" +
                     '<div class="en">' + esc(line.en) + '</div><div class="ko hidden" data-act="reveal" title="탭해서 해석 보기">' + esc(line.ko) + "</div>" +
-                    '<button class="replay" data-speak="' + esc(line.en) + '" aria-label="다시 듣기">' + icon("speaker", 'width="18" height="18"') + "</button></div>";
+                    '<button class="replay" data-speak="' + esc(line.en) + '" data-who="partner" aria-label="다시 듣기">' + icon("speaker", 'width="18" height="18"') + "</button></div>";
                 chat.appendChild(m);
                 m.scrollIntoView({ behavior: "smooth", block: "nearest" });
             }
@@ -203,7 +211,8 @@
                         if (!alive) return;
                         t.remove();
                         partnerBubble(line);
-                        if (Store.get().settings.autoSpeak) Speech.speak(line.en);
+                        if (avatar) avatar.setSpeaker(ch.id + ":" + line.name, line.name);
+                        if (Store.get().settings.autoSpeak) Speech.speak(line.en, { who: "partner" });
                         lineIndex++;
                         advance();
                     }, PARTNER_DELAY_MS);
@@ -236,6 +245,7 @@
                     chat.appendChild(m);
                     var firstTry = !session.attempts[item.id];
                     attempt(item, text, r, m);
+                    if (avatar) avatar.react(r.verdict);
                     input.destroy();
                     composerHost.querySelector(".answer-host").innerHTML = "";
 
@@ -407,7 +417,7 @@
         function onClick(e) {
             var t = e.target.closest("[data-act],[data-speak]");
             if (!t) return;
-            if (t.dataset.speak !== undefined && !t.dataset.act) { e.stopPropagation(); Speech.speak(t.dataset.speak); return; }
+            if (t.dataset.speak !== undefined && !t.dataset.act) { e.stopPropagation(); Speech.speak(t.dataset.speak, { who: t.dataset.who }); return; }
             var act = t.dataset.act;
             if (act === "next") next();
             if (act === "flip") t.classList.toggle("flipped");

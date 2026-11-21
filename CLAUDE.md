@@ -7,10 +7,11 @@
 ## 명령
 
 ```bash
-npm start          # http://localhost:5173 (음성 인식은 localhost/https에서만 동작)
+npm start          # http://localhost:5173 (tools/serve.py — 기본 http.server는 동시 요청을 떨궈 앱이 반쯤 로딩될 수 있음)
 npm run check      # 챕터 검증 + 단위 테스트 — 변경 후 항상 실행
 node .claude/skills/ee-qa/scripts/probe-answers.js   # 정답 변형 누락 탐침
 npm run audio      # 원어민 녹음 생성/갱신 (최초 1회 npm run audio:setup)
+npm run build:avatar  # src/avatar 수정 후 3D 엔진 번들 재빌드 (최초 1회 npm install)
 npm run stamp      # 배포 전: index.html 스크립트 주소에 ?v= 붙여 폰 캐시 무효화 → git push (GitHub Pages)
 ```
 
@@ -25,6 +26,9 @@ npm run stamp      # 배포 전: index.html 스크립트 주소에 ?v= 붙여 �
 | `js/app/views-*.js`, `main.js` | 화면과 해시 라우터 |
 | `tools/validate-chapters.js` | 챕터 스키마·index.html 누락·녹음 누락 검사 |
 | `tools/collect-speech.js`, `build-audio.py` | 앱이 읽는 문장 수집 → Kokoro 뉴럴 TTS로 `audio/*.m4a` + `js/data/audio-manifest.js` 생성 |
+| `src/avatar/engine.js` → `js/vendor/avatar.bundle.js` | 3D 대화 상대 엔진(three-vrm). `js/app/avatar.js`가 롤플레이에서 지연 로딩 |
+| `assets/avatars/` | VRM 모델 + `avatars.js` 목록 + `LICENSES.md` 근거 |
+| `js/data/cast.js` | 등장인물 성별 — 목소리·아바타 외형이 함께 따름 |
 | `tests/core.test.js` | grader/srs/plan 단위 테스트 (node:test) |
 | `_workspace/` | 하네스 중간 산출물, 모바일 프리뷰(`mobile.html`) |
 
@@ -38,6 +42,8 @@ npm run stamp      # 배포 전: index.html 스크립트 주소에 ?v= 붙여 �
 | 챕터 작성·수정 | chapter-authoring |
 | 화면·채점·저장 | ee-frontend |
 | 검수 | ee-qa |
+| 3D 아바타 렌더링·립싱크 | ee-avatar |
+| 아바타 모델 찾기·교체·라이선스 | avatar-assets |
 
 ## 규칙
 

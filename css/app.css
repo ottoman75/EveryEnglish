@@ -579,3 +579,40 @@ select { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- 3D 대화 상대 ---------- */
+.avatar-stage {
+    position: sticky; top: calc(env(safe-area-inset-top) + 74px); z-index: 15;
+    height: clamp(210px, 36vh, 340px); margin-bottom: 12px; border-radius: var(--radius-l); overflow: hidden;
+    background:
+        radial-gradient(120% 90% at 50% 100%, rgba(255, 255, 255, .55), transparent 60%),
+        var(--card-grad, var(--brand-grad));
+    box-shadow: var(--shadow); isolation: isolate;
+}
+.avatar-stage::before {           /* 은은한 실내 보케 */
+    content: ""; position: absolute; inset: 0; z-index: -1; opacity: .5;
+    background:
+        radial-gradient(40px 40px at 18% 30%, rgba(255, 255, 255, .55), transparent 70%),
+        radial-gradient(60px 60px at 82% 22%, rgba(255, 255, 255, .4), transparent 70%),
+        radial-gradient(30px 30px at 70% 60%, rgba(255, 255, 255, .35), transparent 70%);
+}
+.avatar-canvas { width: 100%; height: 100%; display: block; }
+.avatar-name {
+    position: absolute; left: 12px; bottom: 12px; padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 800;
+    color: #fff; background: rgba(0, 0, 0, .28); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.avatar-name:empty { display: none; }
+.avatar-credit {
+    position: absolute; right: 10px; bottom: 8px; max-width: 55%; text-align: right; font-size: 9.5px; line-height: 1.3;
+    color: rgba(255, 255, 255, .8); text-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+}
+.avatar-loading {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center; gap: 10px;
+    color: #fff; font-weight: 700; font-size: 14px;
+}
+.avatar-stage.loading .avatar-loading { display: flex; }
+.avatar-stage.loading .avatar-canvas { opacity: 0; }
+.avatar-canvas { transition: opacity .5s var(--ease); }
+.spinner { width: 20px; height: 20px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (min-width: 960px) { .avatar-stage { top: 76px; } }

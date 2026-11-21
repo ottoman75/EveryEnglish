@@ -119,7 +119,7 @@
         // 화면 어디서든 data-speak 버튼은 발음을 들려준다. 클릭을 직접 처리하는 뷰는 stopPropagation 한다
         document.addEventListener("click", function (e) {
             var t = e.target.closest("[data-speak]");
-            if (t && !t.dataset.act) root.EESpeech.speak(t.dataset.speak);
+            if (t && !t.dataset.act) root.EESpeech.speak(t.dataset.speak, { who: t.dataset.who });
         });
 
         root.addEventListener("hashchange", route);

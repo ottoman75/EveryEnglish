@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><title>avatar test</title>
+<body style="margin:0;background:#222">
+<iframe id="f" style="width:390px;height:844px;border:0;background:#fff"></iframe>
+<script>
+// 테스트 전용 상태: 127.0.0.1 출처라 사용자 기록(localhost)과 분리된다
+const q = new URLSearchParams(location.search);
+const chapter = q.get("ch") || "cafe-order", step = +(q.get("step") || 17);
+localStorage.setItem("everyenglish:v1", JSON.stringify({ version: 1, profile: { name: "Test", createdAt: "2026-11-21" },
+  settings: { rate: 0.95, autoSpeak: true, voiceURI: "", avatar: true, theme: q.get("theme") || "" },
+  progress: {}, wrongNotes: {}, words: {}, daily: {}, xp: 0,
+  inProgress: { chapterId: chapter, stepIndex: step, attempts: {}, xp: 0 } }));
+const f = document.getElementById("f");
+f.src = "../index.html#/learn/" + chapter;
+f.onload = () => {
+  const w = f.contentWindow;
+  setTimeout(() => {
+    if (q.get("answer")) {
+      const ta = w.document.querySelector(".composer textarea");
+      if (ta) { ta.value = q.get("answer"); ta.dispatchEvent(new Event("input")); w.document.querySelector(".composer .send").click(); }
+    }
+  }, +(q.get("answerAt") || 2500));
+};
+</script>

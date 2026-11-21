@@ -3,12 +3,18 @@
   "private": true,
   "description": "매일 30분 상황별 영어회화 웹앱",
   "scripts": {
-    "start": "python3 -m http.server 5173",
+    "start": "python3 tools/serve.py 5173",
     "test": "node --test tests/*.test.js",
     "validate": "node tools/validate-chapters.js",
     "check": "npm run validate && npm test",
     "audio": "~/.cache/everyenglish-tts/venv/bin/python tools/build-audio.py",
     "audio:setup": "sh tools/setup-tts.sh",
-    "stamp": "node tools/stamp-version.js"
+    "stamp": "node tools/stamp-version.js",
+    "build:avatar": "esbuild src/avatar/engine.js --bundle --minify --format=iife --target=es2020 --legal-comments=eof --outfile=js/vendor/avatar.bundle.js"
+  },
+  "devDependencies": {
+    "@pixiv/three-vrm": "^3.5.5",
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0"
   }
 }

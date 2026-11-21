@@ -202,6 +202,11 @@
         return Math.floor(sec / 86400) + "일 전";
     }
 
+    function avatarDownloadMB() {
+        var total = (root.EE_AVATARS || []).reduce(function (n, a) { return n + (a.mb || 0); }, 0);
+        return Math.max(1, Math.round(total + 0.2)); // + 엔진 약 0.2MB
+    }
+
     function syncCardHTML() {
         var G = root.EEGistSync, st = G.status();
         var head = '<div class="section-title" id="sync"><h2>기기 동기화</h2></div>';
@@ -256,6 +261,7 @@
                 '<div class="section-title"><h2>학습 설정</h2></div>' +
                 '<div class="card stage">' +
                 '<div class="setting"><div><b>상대방 대사 자동 재생</b><span>롤플레이에서 상대 말을 바로 들려줘요</span></div><button class="switch' + (s.settings.autoSpeak ? " on" : "") + '" data-act="autospeak" role="switch" aria-checked="' + !!s.settings.autoSpeak + '" aria-label="자동 재생"></button></div>' +
+                '<div class="setting"><div><b>3D 대화 상대</b><span>롤플레이에서 캐릭터가 말하고 표정을 지어요 · 처음 한 번 약 ' + avatarDownloadMB() + 'MB 내려받기</span></div><button class="switch' + (s.settings.avatar !== false ? " on" : "") + '" data-act="avatar-toggle" role="switch" aria-checked="' + (s.settings.avatar !== false) + '" aria-label="3D 대화 상대"></button></div>' +
                 '<div class="setting"><div><b>말하기 속도</b><span class="en">' + s.settings.rate.toFixed(2) + 'x</span></div><input type="range" min="0.6" max="1.2" step="0.05" value="' + s.settings.rate + '" data-act="rate" aria-label="말하기 속도"></div>' +
                 '<div class="setting"><div><b>목소리</b><span>' + (root.EESpeech.hasRecordedAudio() && !s.settings.voiceURI
                     ? "원어민 뉴럴 음성으로 녹음된 오디오를 재생해요"
@@ -310,6 +316,7 @@
             }
             if (act === "sync-off") { root.EEGistSync.disconnect(); UI.toast("이 기기의 동기화를 껐어요", "☁️"); render(); return; }
             if (act === "preview-voice") root.EESpeech.speak("Hi there! What can I get for you?");
+            if (act === "avatar-toggle") { Store.update(function (s) { s.settings.avatar = s.settings.avatar === false; }); render(); }
             if (act === "autospeak") { Store.update(function (s) { s.settings.autoSpeak = !s.settings.autoSpeak; }); render(); }
             if (act === "rename") root.EEApp.askName(render);
             if (act === "export") {

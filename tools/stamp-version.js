@@ -9,6 +9,6 @@ const path = require("path");
 const file = path.join(__dirname, "..", "index.html");
 const v = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
 const html = fs.readFileSync(file, "utf8")
-    .replace(/((?:src|href)="(?:js|css)\/[^"?]+\.(?:js|css))(?:\?v=\w+)?"/g, `$1?v=${v}"`);
+    .replace(/((?:src|href)="(?:js|css|assets)\/[^"?]+\.(?:js|css))(?:\?v=\w+)?"/g, `$1?v=${v}"`);
 fs.writeFileSync(file, html);
 console.log("stamped v=" + v + " · " + (html.match(/\?v=/g) || []).length + " files");

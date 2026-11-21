@@ -49,4 +49,10 @@ for (const ch of loadChapters()) {
 }
 UI_TEXTS.forEach((t) => add(t, "partner", "ui:barista"));
 
+// 배역표의 성별을 붙인다 (목소리·아바타 외형 선택)
+const castBox = { window: {} };
+vm.createContext(castBox);
+vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "data", "cast.js"), "utf8"), castBox);
+items.forEach((it) => { if (it.speaker) it.gender = castBox.window.EE_CAST[it.speaker] || null; });
+
 process.stdout.write(JSON.stringify(items));

@@ -153,6 +153,18 @@ function main() {
         });
     }
 
+    // 경계면: 모든 상대 역할이 배역표(성별)에 있는지 — 목소리와 아바타 외형이 여기에 맞춰진다
+    if (!only.length) {
+        const castBox = { window: {} };
+        vm.createContext(castBox);
+        vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "data", "cast.js"), "utf8"), castBox);
+        const cast = castBox.window.EE_CAST || {};
+        byFile.forEach(({ file, chapters }) => chapters.forEach((ch) => {
+            new Set(ch.dialogues.flatMap((s) => s.lines.filter((l) => l.speaker === "partner").map((l) => l.name)))
+                .forEach((name) => { if (!/^[fm]$/.test(cast[`${ch.id}:${name}`] || "")) errors.push(`${file}: 배역표(js/data/cast.js)에 "${ch.id}:${name}" 성별(f/m) 없음`); });
+        }));
+    }
+
     // 경계면: 앱이 읽는 문장이 모두 녹음돼 있는지 (없으면 그 문장만 브라우저 음성으로 나간다)
     const manifestPath = path.join(__dirname, "..", "js", "data", "audio-manifest.js");
     if (!only.length && fs.existsSync(manifestPath)) {

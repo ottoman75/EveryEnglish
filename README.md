@@ -7,7 +7,7 @@
 ## 실행
 
 ```bash
-npm start            # 또는: python3 -m http.server 5173
+npm start            # = python3 tools/serve.py 5173
 ```
 → 브라우저에서 `http://localhost:5173`
 

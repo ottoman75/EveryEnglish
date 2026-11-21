@@ -21,18 +21,29 @@
     var manifest = root.EE_AUDIO || { base: "audio/", clips: {} };
     var currentAudio = null;
 
+    // 말하기 시작/끝 알림 — 아바타 립싱크가 구독한다
+    // start: { text, audio?: HTMLAudioElement (녹음일 때), synth: boolean }
+    var speechListeners = { start: [], end: [] };
+    function emit(type, info) { speechListeners[type].forEach(function (fn) { try { fn(info); } catch (e) { /* 구독자 오류가 재생을 막지 않게 */ } }); }
+
     function clipFor(text) {
         var key = String(text || "").trim();
         return manifest.clips[key] ? manifest.base + manifest.clips[key] : null;
     }
 
-    function playClip(src, rate) {
+    function playClip(src, rate, who) {
         return new Promise(function (resolve) {
             stopSpeaking();
             var a = new Audio(src);
+            a.crossOrigin = "anonymous";            // 립싱크 분석(Web Audio)에 필요
             a.preservesPitch = true;
             a.playbackRate = Math.max(0.5, Math.min(2, rate / DEFAULT_RATE));
-            a.onended = a.onerror = function () { if (currentAudio === a) currentAudio = null; resolve(); };
+            a.onended = a.onerror = function () {
+                if (currentAudio === a) currentAudio = null;
+                emit("end", { text: src });
+                resolve();
+            };
+            a.onplay = function () { emit("start", { text: src, audio: a, synth: false, who: who }); };
             currentAudio = a;
             var p = a.play();
             if (p && p.catch) p.catch(function () { resolve(); });
@@ -82,7 +93,7 @@
         return voices.find(function (v) { return !NOVELTY.test(v.name); }) || null;
     }
 
-    function synthSpeak(text, rate, voiceURI) {
+    function synthSpeak(text, rate, voiceURI, who) {
         return voicesReady.then(function () {
             return new Promise(function (resolve) {
                 var voice = pickVoice(voiceURI);
@@ -92,7 +103,8 @@
                 u.voice = voice;
                 u.lang = voice.lang;
                 u.rate = rate;
-                u.onend = u.onerror = resolve;
+                u.onstart = function () { emit("start", { text: text, synth: true, who: who }); };
+                u.onend = u.onerror = function () { emit("end", { text: text }); resolve(); };
                 synth.speak(u);
             });
         });
@@ -104,13 +116,14 @@
         var settings = (root.EEStore && root.EEStore.get().settings) || {};
         var rate = (options && options.rate) || settings.rate || DEFAULT_RATE;
         var src = settings.voiceURI ? null : clipFor(text); // 사용자가 브라우저 음성을 직접 고르면 그 음성으로
-        if (src) return playClip(src, rate);
+        var who = options && options.who;   // "partner"면 아바타가 입을 움직인다
+        if (src) return playClip(src, rate, who);
         if (!synth) return Promise.resolve();
-        return synthSpeak(text, rate, settings.voiceURI);
+        return synthSpeak(text, rate, settings.voiceURI, who);
     }
 
     function stopSpeaking() {
-        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+        if (currentAudio) { currentAudio.pause(); currentAudio = null; emit("end", {}); }
         if (synth) synth.cancel();
     }
 
@@ -157,6 +170,9 @@
         hasRecordedAudio: function () { return Object.keys(manifest.clips).length > 0; },
         hasClip: function (text) { return !!clipFor(text); },
         voices: englishVoices,
+        on: function (type, fn) { speechListeners[type].push(fn); },
+        off: function (type, fn) { speechListeners[type] = speechListeners[type].filter(function (f) { return f !== fn; }); },
+        partnerVoice: function (speakerKey) { return (manifest.speakers || {})[speakerKey] || null; },
         voiceScore: voiceScore
     };
 })(window);

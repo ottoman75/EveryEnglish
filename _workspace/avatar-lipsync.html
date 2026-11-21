@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8"><title>lipsync</title><body><pre id="out">running</pre>
+<iframe id="f" style="width:390px;height:844px;border:0"></iframe>
+<script>
+// 립싱크 점검: 녹음 재생 중 입 값이 움직이는지, 침묵 중 닫히는지, 정답 후 웃는지 수치로 기록
+localStorage.setItem("everyenglish:v1", JSON.stringify({ version: 1, profile: { name: "T", createdAt: "2026-11-21" },
+  settings: { rate: 0.95, autoSpeak: false, avatar: true }, progress: {}, wrongNotes: {}, words: {}, daily: {}, xp: 0,
+  inProgress: { chapterId: "cafe-order", stepIndex: 17, attempts: {}, xp: 0 } }));
+const f = document.getElementById("f"), out = document.getElementById("out");
+f.src = "../index.html#/learn/cafe-order";
+f.onload = async () => {
+  const w = f.contentWindow, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (let i = 0; i < 40 && !(w.__eeAvatar && w.__eeAvatar.debug()); i++) await sleep(200);
+  await sleep(1500);
+  out.textContent = "stage ready";
+  w.EEAvatarEngine.unlockAudio();
+  await sleep(300);
+  const samples = [];
+  const p = w.EESpeech.speak("Good morning! What can I get for you?", { who: "partner" });
+  let playing = true; p.then(() => { playing = false; });
+  while (playing && samples.length < 80) { const d = w.__eeAvatar.debug(); samples.push(d); await sleep(50); }
+  await sleep(600);
+  const after = w.__eeAvatar.debug();
+  // 학습자 모범답안(who 없음)에는 입을 움직이지 않아야 한다
+  const own = []; let p2 = w.EESpeech.speak("Can I get an iced latte?"); let pl2 = true; p2.then(() => pl2 = false);
+  while (pl2 && own.length < 60) { own.push(w.__eeAvatar.debug()); await sleep(50); }
+  w.__eeAvatar.react("correct"); await sleep(700); const happy = w.__eeAvatar.debug();
+  const open = samples.map((s) => s.mouth.aa + s.mouth.ee + s.mouth.ou);
+  out.textContent = JSON.stringify({
+    mode: samples.map((s) => s.speaking).filter(Boolean)[0], n: samples.length,
+    maxOpen: +Math.max(...open).toFixed(2), meanOpen: +(open.reduce((a, b) => a + b, 0) / open.length).toFixed(2),
+    distinctShapes: new Set(samples.map((s) => ["aa", "ee", "ou"].reduce((m, k) => s.mouth[k] > s.mouth[m] ? k : m, "aa"))).size,
+    afterSilence: +(after.mouth.aa + after.mouth.ee + after.mouth.ou).toFixed(3),
+    ownAnswerMaxOpen: +Math.max(0, ...own.map((s) => s.mouth.aa + s.mouth.ee + s.mouth.ou)).toFixed(3),
+    happyMood: happy.mood, happyValue: +happy.moodValue.toFixed(2),
+    audioCtx: w.EEAvatarEngine && "ok"
+  });
+  document.title = "done";
+};
+</script>

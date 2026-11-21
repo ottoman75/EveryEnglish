@@ -16,7 +16,8 @@ description: "EveryEnglish 영어회화 웹앱 개발 하네스를 조율한다.
 |---|---|---|---|---|
 | content-author ×N | `.claude/agents/content-author.md` | general-purpose | chapter-authoring | `js/data/chapters/NN-id.js` |
 | qa-inspector | `.claude/agents/qa-inspector.md` | general-purpose | ee-qa | `_workspace/03_qa-inspector_report.md` |
-| (메인) | — | — | ee-frontend | `index.html`, `css/`, `js/core`, `js/app` |
+| avatar-scout | `.claude/agents/avatar-scout.md` | general-purpose | avatar-assets | `_workspace/04_avatar-scout_candidates.md`, `assets/avatars/` |
+| (메인) | — | — | ee-frontend, ee-avatar | `index.html`, `css/`, `js/core`, `js/app`, `src/avatar` |
 
 모든 Agent 호출은 `model: "opus"`, `run_in_background: true`.
 
@@ -38,6 +39,11 @@ description: "EveryEnglish 영어회화 웹앱 개발 하네스를 조율한다.
 3. `node .claude/skills/ee-qa/scripts/probe-answers.js` → wrong 후보가 많으면, 공통 패턴은 grader 정규화로, 개별 사례는 QA에게.
 4. qa-inspector 실행. 보고서의 확정 결함을 메인이 수정.
 5. 브라우저 확인: `npm start` 후 390px 폭(`_workspace/mobile.html` 프리뷰 사용 가능)에서 학습 세션 1회를 끝까지 진행 → 오답이 오답노트에 쌓이고, due를 오늘로 바꾸면 집중케어에서 다시 나오는지.
+
+### 아바타 작업 (3D 대화 상대)
+- 모델 조사·라이선스 검증은 avatar-scout를 백그라운드로 띄우고, 메인은 그동안 `src/avatar` 엔진을 만진다(서로 다른 파일).
+- 새 등장인물을 추가하면 `js/data/cast.js` 성별 → `npm run audio`(목소리) → 아바타 외형이 자동으로 따라온다.
+- 엔진 수정 후 `npm run build:avatar && npm run stamp`.
 
 ## 데이터 전달
 
