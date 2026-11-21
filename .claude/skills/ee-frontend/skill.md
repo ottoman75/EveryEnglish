@@ -48,6 +48,7 @@ description: "EveryEnglish 웹앱의 화면·UI·채점·저장 로직(index.htm
 - 챕터 고유색은 `--card-grad`(세션 화면 루트에 설정)와 `UI.gradient(ch)`로.
 - 모바일 우선. 960px 이상에서 사이드바. 몰입 화면(`body.immersive`)은 탭바를 숨긴다.
 - 입력창 폰트는 16px 이상 — iOS Safari가 확대하지 않게.
+- **본문 폭은 `.main { width: 100% }`로 고정한다.** 데스크톱 그리드에서 `margin: auto`만 주면 '내용 너비'로 줄어들어, 아바타·자막·말풍선이 바뀔 때마다 본문이 넓어졌다 좁아졌다 한다(사용자 화면 기록으로 확인, 488↔424px). 그리기 크기가 큰 `<canvas>`는 `position: absolute`로 배치 계산에서 뺀다 — 안 그러면 본문 폭 → canvas 크기 → 본문 폭 되먹임이 생긴다.
 - **화면 밖으로 삐져나오는 요소 금지**: iOS Safari는 하나라도 넘치면 페이지 전체를 축소해 보여준다. 특히 `<canvas>`는 CSS 폭을 반드시 지정한다(없으면 픽셀 크기 = 화면폭×기기배율로 그려져 3배로 넓어진다 — 축하 효과 canvas가 실제로 그랬다). 안전망으로 `html, body { overflow-x: clip }`.
 - 모션은 `prefers-reduced-motion`을 존중한다(이미 전역 처리됨).
 
