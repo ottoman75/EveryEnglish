@@ -635,7 +635,7 @@ select { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-
 }
 .avatar-caption.on { opacity: 1; transform: translate(-50%, 0); }
 .avatar-tap {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+    position: absolute; left: 50%; top: 50%; translate: -50% -50%; z-index: 2;   /* translate 속성: pulse 애니메이션(transform)과 충돌하지 않게 */
     padding: 12px 20px; border-radius: 999px; font-weight: 800; font-size: 15px; color: #1a1438; background: rgba(255, 255, 255, .95);
     box-shadow: 0 10px 30px rgba(0, 0, 0, .25); animation: pulse 1.4s ease-in-out infinite;
 }
@@ -656,4 +656,5 @@ select { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-
 .portrait-mode .avatar-caption { bottom: 14px; }
 .portrait-mode .avatar-name { top: 12px; bottom: auto; }
 .portrait-mode .avatar-credit { top: 14px; bottom: auto; }
+.portrait-mode .avatar-tap { top: auto; bottom: 70px; translate: -50% 0; }   /* 입을 가리지 않게 자막 위로 */
 .portrait-frame .pl { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }

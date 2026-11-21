@@ -1,6 +1,7 @@
 /*
  * 2D '말하는 초상화' — 같은 구도의 이미지 3~5장을 겹쳐, 녹음에 맞춰 입·눈만 바꾸고 고개를 움직인다.
  *   base  : 입 다문 기본 (필수)      talk : 입 벌림 '아' (필수)      blink : 눈 감음 (필수)
+ *   talkS : 살짝 벌린 입 (선택 — 있으면 작은 소리는 talkS, 큰 소리는 talk로 2단계)
  *   talkO : 입 오므림 '우/오' (선택) smile: 활짝 웃음 (선택, 정답 반응)
  * 입·눈 영역은 마스크로만 드러낸다 → 생성 AI가 변형 이미지의 다른 부분을 조금 다르게 그려도 티가 안 난다.
  * 영역 좌표(mouth/eyes)는 이미지 기준 비율(0~1). tools/portrait-detect 로 얼굴 인식해 자동으로 채운다.
@@ -34,12 +35,12 @@
         function show(d) {
             if (def && def.id === d.id) return Promise.resolve();
             def = d;
-            var layers = ["base", "talk", "talkO", "blink", "smile"].filter(function (k) { return d[k]; });
+            var layers = ["base", "talkS", "talk", "talkO", "blink", "smile"].filter(function (k) { return d[k]; });
             wrap.innerHTML =
                 '<div class="portrait-bg" style="background-image:url(\'' + d.base + '\')"></div>' +
                 '<div class="portrait-frame" style="--ar:' + (d.aspect || 0.8) + '">' +
                 layers.map(function (k) {
-                    var region = k === "blink" ? d.eyes : (k === "talk" || k === "talkO") ? d.mouth : null;
+                    var region = k === "blink" ? d.eyes : (k === "talk" || k === "talkS" || k === "talkO") ? d.mouth : null;
                     return '<img class="pl pl-' + k + '" alt="" draggable="false" src="' + d[k] + '" style="' +
                         (region ? maskCSS(region, k === "blink" ? 60 : 50) : "") + (k === "base" ? "" : "opacity:0;") + '">';
                 }).join("") + "</div>";
@@ -76,7 +77,14 @@
                 mouth[k] += (target[k] - mouth[k]) * Math.min(1, rate * dt);
             });
             // 이미지 교차는 0~1 불투명도: 반쯤 벌린 입은 두 이미지가 섞여 중간 모양처럼 보인다
-            setOpacity(els.talk, Math.min(1, mouth.open * 1.4));
+            if (els.talkS) {
+                // 2단계: 살짝 벌린 입이 먼저 나타나고, 크게 벌릴 때 큰 입으로 넘어간다
+                var sm = LS().smoothstep;
+                setOpacity(els.talkS, sm(0.05, 0.35, mouth.open));
+                setOpacity(els.talk, sm(0.45, 0.85, mouth.open));
+            } else {
+                setOpacity(els.talk, Math.min(1, mouth.open * 1.4));
+            }
             setOpacity(els.talkO, Math.min(1, mouth.round * 1.4));
             talkLevel += ((mouth.open + mouth.round) - talkLevel) * Math.min(1, 10 * dt);
 

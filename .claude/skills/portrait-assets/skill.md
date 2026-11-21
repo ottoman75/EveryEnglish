@@ -15,12 +15,23 @@ description: "EveryEnglish 2D '말하는 초상화' 대화 상대의 이미지 �
 | `tools/portrait-detect.html` | 얼굴 인식 페이지 (MediaPipe Face Landmarker, Apache-2.0 — CDN에서 모델을 받으므로 인터넷 필요) |
 | `js/app/portrait.js` | 렌더러: 입·눈 영역만 마스크로 교차, 고개·숨쉬기, 반응 |
 | `_workspace/05_portrait-prompts.md` | 사용자용 이미지 생성 가이드(공통 스타일 + 인물별 묘사 + 편집 요청) |
+| `tools/portrait-generate.py` | **맥에서 직접 생성** (SDXL, 라이선스 OpenRAIL++ — 생성물 상업 이용 가능). `base` → 후보 고르기 → `blink`(직접 그림) → `variants`(talk·talkBig 인페인팅) |
+
+## 직접 생성 절차 (사용자가 이미지를 주지 않을 때)
+
+준비: `~/.cache/everyenglish-imggen/venv` + SDXL 가중치(~7.4GB, `~/.cache/huggingface`). M1 16GB 기준 1장 ≈ 4~6분 — 한 번에 하나씩만(메모리).
+1. `base <id> --character ".." --background ".." --seeds 33 44` → 후보를 눈으로 보고 고른다. 얼굴이 작으면 머리~가슴으로 잘라 832×1040으로 키워도 된다
+2. 고른 이미지로 `portrait-add.mjs`(talk/blink에 같은 파일)를 한 번 돌려 `mouth`·`eyeL`·`eyeR`를 얻는다
+3. `blink <id> --base .. --eyeL .. --eyeR ..` — **감은 눈은 생성 모델로 만들지 않는다**(SDXL은 4회 모두 눈을 뜬 채 다른 눈을 그렸다). 주변 피부로 복원 + 속눈썹 곡선
+4. `variants <id> --base .. --mouth .. --eyes .. --seeds 8` → `talk`(살짝 벌림) + `talkBig`(크게). 등록 시 talkBig→`talk.png`, talk→`talkS.png` (2단계 입)
+5. 실패 경험(스크립트에 반영됨): 다시 그릴 때 기본 스타일 문장(입 다문 미소)을 섞으면 입이 안 열린다 / 영역을 크게 잡으면 소리 지르는 입 / 얼굴 크게만 요청하면 회색 스튜디오 배경
+6. 중간 산출물 `_workspace/portraits/`는 커밋하지 않는다(.gitignore)
 
 ## 원칙과 이유
 
 - **변형 이미지는 반드시 기본 이미지를 '편집'해서 만든다.** 새로 생성하면 얼굴이 달라진다. 마스크가 입·눈 밖을 가려 주지만, 영역 안의 피부·턱선까지 달라지면 교차할 때 번져 보인다. 등록 도구의 구도 차이(`align`)가 0.06을 넘으면 다시 만들게 한다.
 - **구도**: 세로 4:5, 얼굴은 위쪽 절반, 가슴까지. 자막이 무대 아래쪽에 뜨므로 입이 너무 아래에 있으면 가린다.
-- **Claude는 이미지를 생성하지 못한다.** 이미지 생성·편집은 사용자가 외부 도구로 한다. 우리는 프롬프트를 주고, 받은 이미지를 검사·등록한다.
+- 이미지는 사용자가 외부 도구(ChatGPT·Gemini 편집)로 만들어 주거나, `tools/portrait-generate.py`로 맥에서 직접 만든다.
 - **남의 캐릭터 금지**: 광고·작품 속 캐릭터를 그대로 쓰지 않는다(테스트로만, 커밋 금지).
 - 초상화가 없는 인물은 3D 아바타로 나온다 — 부분 등록이 정상 상태다.
 

@@ -13,7 +13,7 @@ import path from "node:path";
 import vm from "node:vm";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const LAYERS = ["base", "talk", "blink", "talkO", "smile"];
+const LAYERS = ["base", "talk", "talkS", "blink", "talkO", "smile"];
 const REQUIRED = ["base", "talk", "blink"];
 const MAX_PX = 1024;              // 긴 변 — 폰 화면 높이의 2~3배면 충분
 const ALIGN_WARN = 0.06;          // 입·눈 밖 차이가 이보다 크면 교차할 때 티가 난다
@@ -96,12 +96,12 @@ vm.createContext(box);
 vm.runInContext(readFileSync(manifestPath, "utf8"), box);
 const P = box.window.EE_PORTRAITS || { characters: {}, cast: {} };
 P.characters[id] = Object.assign({}, found, {
-    mouth: result.mouth, eyes: result.eyes, aspect: result.aspect,
+    mouth: result.mouth, eyes: result.eyes, eyeL: result.eyeL, eyeR: result.eyeR, aspect: result.aspect,
     credit: opts.credit !== undefined ? opts.credit : (P.characters[id] && P.characters[id].credit) || ""
 });
 cast.forEach((c) => { P.cast[c] = id; });
 const header = readFileSync(manifestPath, "utf8").split("(window.EE_PORTRAITS")[0];
 writeFileSync(manifestPath, header + "(window.EE_PORTRAITS = " + JSON.stringify(P, null, 4) + ");\n");
 
-console.log(JSON.stringify({ id, layers: Object.keys(found), mouth: result.mouth, eyes: result.eyes, align: result.align, cast }, null, 1));
+console.log(JSON.stringify({ id, layers: Object.keys(found), mouth: result.mouth, eyes: result.eyes, eyeL: result.eyeL, eyeR: result.eyeR, align: result.align, cast }, null, 1));
 console.log(warn ? "\n등록은 했지만 위 경고를 확인하세요." : "\n✅ 등록 완료. npm run stamp 후 롤플레이에서 확인하세요.");

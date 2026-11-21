@@ -59,9 +59,15 @@ try {
         rx: dist(33, 263) * 0.72,
         ry: Math.max(eyeH * 2.6, dist(33, 263) * 0.16)
     };
+    // 눈 한쪽씩: 안·바깥 눈꼬리, 위·아래 눈꺼풀 — 깜빡임 그림(감은 눈) 위치에 쓴다
+    const eyeOf = (outer, inner, top, bottom) => ({
+        x: (p(outer).x + p(inner).x) / 2, y: (p(top).y + p(bottom).y) / 2,
+        rx: Math.abs(p(outer).x - p(inner).x) / 2, ry: Math.abs(p(top).y - p(bottom).y) / 2
+    });
+    const eyeL = eyeOf(33, 133, 159, 145), eyeR = eyeOf(263, 362, 386, 374);
     const round = (r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, +v.toFixed(4)]));
-    const result = { mouth: round(mouth), eyes: round(eyes), aspect: +(base.naturalWidth / base.naturalHeight).toFixed(4), size: [base.naturalWidth, base.naturalHeight], align: {} };
-    for (const k of ["talk", "talkO", "blink", "smile"]) {
+    const result = { mouth: round(mouth), eyes: round(eyes), eyeL: round(eyeL), eyeR: round(eyeR), aspect: +(base.naturalWidth / base.naturalHeight).toFixed(4), size: [base.naturalWidth, base.naturalHeight], align: {} };
+    for (const k of ["talk", "talkS", "talkO", "blink", "smile"]) {
         if (!q.get(k)) continue;
         const img = await load(q.get(k));
         if (img.naturalWidth / img.naturalHeight !== base.naturalWidth / base.naturalHeight) result.align[k] = "비율 다름";
