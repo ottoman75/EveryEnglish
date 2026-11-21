@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>portrait detect</title>
+<!--
+  초상화 이미지에서 입·눈 영역을 얼굴 인식(MediaPipe Face Landmarker, Apache-2.0)으로 측정하고,
+  변형 이미지(talk/blink/...)가 기본 이미지와 같은 구도인지 검사한다.
+  사용: tools/portrait-add.mjs 가 헤드리스 크롬으로 이 페이지를 열어 결과(JSON)를 읽는다.
+  ?base=..&talk=..&blink=..&talkO=..&smile=..  (사이트 루트 기준 경로)
+-->
+<body><pre id="out">running</pre>
+<script type="module">
+const out = document.getElementById("out");
+const q = new URLSearchParams(location.search);
+const VISION = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+
+function load(src) {
+    return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("이미지를 못 읽음: " + src)); i.src = "../" + src; });
+}
+
+// 기본 이미지와 변형 이미지의 차이를 입·눈 영역 '밖'에서만 잰다 (같은 구도인지)
+function diffOutside(a, b, regions) {
+    const W = 80, H = Math.round(80 * a.naturalHeight / a.naturalWidth);
+    const px = (img) => { const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d"); g.drawImage(img, 0, 0, W, H); return g.getImageData(0, 0, W, H).data; };
+    const pa = px(a), pb = px(b);
+    let sum = 0, n = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const fx = x / W, fy = y / H;
+        if (regions.some((r) => ((fx - r.x) / (r.rx * 1.1)) ** 2 + ((fy - r.y) / (r.ry * 1.1)) ** 2 <= 1)) continue;
+        const i = (y * W + x) * 4;
+        sum += (Math.abs(pa[i] - pb[i]) + Math.abs(pa[i + 1] - pb[i + 1]) + Math.abs(pa[i + 2] - pb[i + 2])) / 3; n++;
+    }
+    return +(sum / n / 255).toFixed(3);   // 0 = 같음, 0.05 이하면 마스크 교차가 자연스럽다
+}
+
+try {
+    const { FaceLandmarker, FilesetResolver } = await import(VISION + "/vision_bundle.mjs");
+    const fileset = await FilesetResolver.forVisionTasks(VISION + "/wasm");
+    const lm = await FaceLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: MODEL }, runningMode: "IMAGE", numFaces: 1 });
+    const base = await load(q.get("base"));
+    const res = lm.detect(base);
+    if (!res.faceLandmarks.length) throw new Error("기본 이미지에서 얼굴을 찾지 못함 — 정면 얼굴이 크게 나오게 다시 만들어 주세요");
+    const L = res.faceLandmarks[0];
+    const p = (i) => L[i];
+    const dist = (a, b) => Math.hypot(p(a).x - p(b).x, p(a).y - p(b).y);
+    // 입: 양 끝(61,291), 윗입술(0), 아랫입술(17), 코끝 아래(2), 턱(152)
+    const mouthW = dist(61, 291);
+    const mouth = {
+        x: (p(61).x + p(291).x) / 2,
+        y: (p(0).y + p(17).y) / 2 + (p(152).y - p(17).y) * 0.15,     // 입을 벌리면 아래로 내려가므로 살짝 아래 중심
+        rx: mouthW * 0.95,
+        ry: (p(152).y - p(2).y) * 0.55
+    };
+    // 두 눈을 한 타원으로: 바깥 눈꼬리(33, 263), 위·아래 눈꺼풀(159,145 / 386,374)
+    const eyeH = Math.max(Math.abs(p(159).y - p(145).y), Math.abs(p(386).y - p(374).y));
+    const eyes = {
+        x: (p(33).x + p(263).x) / 2,
+        y: (p(159).y + p(145).y + p(386).y + p(374).y) / 4,
+        rx: dist(33, 263) * 0.72,
+        ry: Math.max(eyeH * 2.6, dist(33, 263) * 0.16)
+    };
+    const round = (r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, +v.toFixed(4)]));
+    const result = { mouth: round(mouth), eyes: round(eyes), aspect: +(base.naturalWidth / base.naturalHeight).toFixed(4), size: [base.naturalWidth, base.naturalHeight], align: {} };
+    for (const k of ["talk", "talkO", "blink", "smile"]) {
+        if (!q.get(k)) continue;
+        const img = await load(q.get(k));
+        if (img.naturalWidth / img.naturalHeight !== base.naturalWidth / base.naturalHeight) result.align[k] = "비율 다름";
+        else result.align[k] = diffOutside(base, img, k === "smile" ? [] : [result.mouth, result.eyes]);
+    }
+    out.textContent = JSON.stringify(result);
+} catch (e) {
+    out.textContent = JSON.stringify({ error: e.message });
+}
+document.title = "done";
+</script>

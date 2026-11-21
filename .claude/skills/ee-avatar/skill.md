@@ -11,7 +11,8 @@ description: "EveryEnglish 3D 대화 상대(VRM 아바타)의 렌더링·립싱�
 |---|---|
 | `src/avatar/engine.js` | three.js + three-vrm 엔진 (ESM 소스). **직접 고치면 `npm run build:avatar` 필수** |
 | `js/vendor/avatar.bundle.js` | 빌드 산출물 (IIFE, `window.EEAvatarEngine`). 롤플레이 진입 시에만 지연 로딩 |
-| `js/app/avatar.js` | 화면 연결: 엔진 로딩, 인물→모델 선택, 음성 이벤트 구독, 실패 시 조용히 빠지기 |
+| `js/app/avatar.js` | 화면 연결: 인물마다 **2D 초상화(있으면 우선) 또는 3D** 선택, 음성 이벤트 구독, 자막, 실패 시 조용히 빠지기 |
+| `js/core/lipsync.js` | 립싱크 분석·입 모양 계산 **한 벌** — 3D 엔진과 2D 초상화(`js/app/portrait.js`)가 같이 쓴다 |
 | `assets/avatars/avatars.js` | 모델 목록 `{ id, file, gender, mb, credit }` |
 | `js/data/cast.js` | 인물 성별 — 녹음 목소리와 모델 외형이 함께 따른다 |
 
@@ -31,8 +32,8 @@ description: "EveryEnglish 3D 대화 상대(VRM 아바타)의 렌더링·립싱�
 
 | 증상 | 손댈 곳 |
 |---|---|
-| 입이 너무 작게/크게 움직임 | `updateMouth`의 `smoothstep(0.18, 0.75, rms / peak)` — 파형 RMS를 문장별 최고치로 나눈 값. 주파수(dB) 데이터로 벌림을 정하지 말 것: 조용한 구간도 커 보여 입이 계속 열린다 |
-| 입 모양이 한 가지뿐 | `EE_ZCR`, `OU_ZCR` 경계 (유성음 ZCR 실측 p25 0.027 · p50 0.041 · p75 0.06) |
+| 입이 너무 작게/크게 움직임 | `js/core/lipsync.js`의 `OPEN_LEVEL`(0.18~0.75) — 파형 RMS를 문장별 최고치로 나눈 값. 주파수(dB) 데이터로 벌림을 정하지 말 것: 조용한 구간도 커 보여 입이 계속 열린다 |
+| 입 모양이 한 가지뿐 | `js/core/lipsync.js`의 `EE_ZCR`, `OU_ZCR` 경계 (유성음 ZCR 실측 p25 0.027 · p50 0.041 · p75 0.06) |
 | 아바타가 안 움직이고 소리도 없음(폰) | 자동재생 차단. `EESpeech`의 공유 오디오 요소·`unlockPlayback`, `blocked` 이벤트 처리 확인 |
 | 팔이 몸을 뚫거나 T자 | `relaxPose`의 팔 회전값 (VRM 0.x/1.0 모두 three-vrm 정규화 본 기준) |
 | 얼굴이 잘리거나 너무 멀다 | `FRAME_DISTANCE`, `frame()`의 세로 화면 배율 |

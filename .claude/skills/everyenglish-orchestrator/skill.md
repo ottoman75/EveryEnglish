@@ -40,6 +40,9 @@ description: "EveryEnglish 영어회화 웹앱 개발 하네스를 조율한다.
 4. qa-inspector 실행. 보고서의 확정 결함을 메인이 수정.
 5. 브라우저 확인: `npm start` 후 390px 폭(`_workspace/mobile.html` 프리뷰 사용 가능)에서 학습 세션 1회를 끝까지 진행 → 오답이 오답노트에 쌓이고, due를 오늘로 바꾸면 집중케어에서 다시 나오는지.
 
+### 대화 상대 작업
+- 2D 말하는 초상화가 우선(인물별 이미지가 있으면), 없으면 3D. 이미지 생성은 사용자 몫 — `_workspace/05_portrait-prompts.md`를 주고, 받은 이미지는 portrait-assets 스킬로 등록.
+
 ### 아바타 작업 (3D 대화 상대)
 - 모델 조사·라이선스 검증은 avatar-scout를 백그라운드로 띄우고, 메인은 그동안 `src/avatar` 엔진을 만진다(서로 다른 파일).
 - 새 등장인물을 추가하면 `js/data/cast.js` 성별 → `npm run audio`(목소리) → 아바타 외형이 자동으로 따라온다.

@@ -20,13 +20,8 @@ const MOUTH = ["aa", "ih", "ou", "ee", "oh"];
 const CAMERA_FOV = 24;
 const FRAME_DISTANCE = 1.35;          // 머리~어깨가 들어오는 거리(m)
 const BLINK_MIN_S = 1.8, BLINK_MAX_S = 5.5;
-// 입 모양 판정용 영점교차율 경계 — Kokoro 녹음 유성음 실측(2026-11-21): p25 0.027 · p50 0.041 · p75 0.06 · p90 0.105
-// 상위 ~25%는 이/에, 하위 ~25%는 우/오, 나머지는 아
-const EE_ZCR = [0.055, 0.095];
-const OU_ZCR = [0.022, 0.034];
-
-const ANALYSIS_FPS = 60;
-const analysisCache = new Map();      // src → Promise<{ level: Float32Array, zcr: Float32Array }>
+// 립싱크 분석은 js/core/lipsync.js(window.EELipSync) 하나만 쓴다 — 2D 초상화와 같은 입 모양
+const LipSync = () => window.EELipSync;
 const modelCache = new Map();         // url → Promise<gltf>
 
 function webglSupported() {
@@ -36,45 +31,6 @@ function webglSupported() {
     } catch (e) {
         return false;
     }
-}
-
-/*
- * 립싱크 분석: 재생 중인 오디오를 Web Audio로 돌리지 않고, 같은 녹음 파일을 따로 받아 미리 분석한다.
- * (iPhone은 AudioContext가 잠기면 그쪽으로 돌린 소리가 통째로 사라진다 — 소리 재생을 분석에 의존하지 않기 위해)
- * 프레임(1/60초)마다 RMS 음량과 영점교차율(ZCR, 높을수록 '이/스' 같은 날카로운 소리)을 계산한다.
- */
-function analyzeClip(src) {
-    if (!analysisCache.has(src)) {
-        const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        const job = fetch(src).then((r) => r.arrayBuffer()).then((buf) => new Promise((resolve, reject) => {
-            const ctx = new Offline(1, 2, 24000);
-            const p = ctx.decodeAudioData(buf, resolve, reject);   // 구형 Safari는 콜백 방식만 지원
-            if (p && p.then) p.then(resolve, reject);
-        })).then((audio) => {
-            const x = audio.getChannelData(0), sr = audio.sampleRate;
-            const hop = Math.floor(sr / ANALYSIS_FPS), win = hop * 2;
-            const n = Math.max(1, Math.floor(x.length / hop));
-            const rms = new Float32Array(n), zcr = new Float32Array(n);
-            for (let f = 0; f < n; f++) {
-                let sq = 0, zc = 0;
-                const s0 = f * hop, s1 = Math.min(x.length, s0 + win);
-                for (let i = s0; i < s1; i++) {
-                    sq += x[i] * x[i];
-                    if (i > s0 && (x[i] >= 0) !== (x[i - 1] >= 0)) zc++;
-                }
-                rms[f] = Math.sqrt(sq / Math.max(1, s1 - s0));
-                zcr[f] = zc / Math.max(1, s1 - s0);
-            }
-            // 문장 안에서 상대값으로 (95번째 백분위를 최대로) — 녹음마다 음량이 달라도 같은 폭으로 움직이게
-            const sorted = Array.from(rms).sort((p, q) => p - q);
-            const peak = sorted[Math.floor(sorted.length * 0.95)] || 1e-4;
-            const level = rms.map((v) => Math.min(1.2, v / peak));
-            return { level, zcr };
-        });
-        job.catch(() => analysisCache.delete(src));
-        analysisCache.set(src, job);
-    }
-    return analysisCache.get(src);
 }
 
 function loadModel(url) {
@@ -185,18 +141,10 @@ function createStage(host) {
     function updateMouth(dt) {
         let target = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
         if (speaking && speaking.track) {
-            const { track, audio } = speaking;
-            const i = Math.min(track.level.length - 1, Math.max(0, Math.floor(audio.currentTime * ANALYSIS_FPS)));
-            const level = track.level[i], zcr = track.zcr[i];
-            const open = smoothstep(0.18, 0.75, level);
-            lastRaw = { level, zcr };
-            const ee = open * smoothstep(EE_ZCR[0], EE_ZCR[1], zcr);           // 날카로운 소리 → 이/에
-            const ou = open * (1 - smoothstep(OU_ZCR[0], OU_ZCR[1], zcr)) * 0.9; // 둔한 소리 → 우/오
-            target = { aa: Math.max(0, open - Math.max(ee, ou) * 0.8), ee, ih: ee * 0.35, ou, oh: ou * 0.5 };
-            const sum = target.aa + target.ee + target.ih + target.ou + target.oh;
-            const cap = open * 0.9;
-            if (sum > cap && sum > 0) MOUTH.forEach((k) => { target[k] *= cap / sum; });
-            talkLevel += (open - talkLevel) * Math.min(1, 12 * dt);
+            const shape = LipSync().shapeAt(speaking.track, speaking.audio.currentTime);
+            target = { aa: shape.aa, ih: shape.ih, ou: shape.ou, ee: shape.ee, oh: shape.oh };
+            lastRaw = { open: shape.open };
+            talkLevel += (shape.open - talkLevel) * Math.min(1, 12 * dt);
         } else if (speaking && speaking.synthetic) {
             // 녹음이 없을 때(기기 음성): 리듬만 흉내
             const o = 0.35 + 0.35 * Math.sin(elapsed * 17) * Math.sin(elapsed * 5.3);
@@ -289,7 +237,7 @@ function createStage(host) {
     function speakAudio(audio, src) {
         speaking = { synthetic: true };
         const token = (speakToken = (speakToken || 0) + 1);
-        analyzeClip(src || audio.currentSrc || audio.src).then((track) => {
+        LipSync().analyzeClip(src || audio.currentSrc || audio.src).then((track) => {
             if (token === speakToken && speaking) speaking = { track, audio };
         }).catch(() => { /* 분석 실패 시 리듬 흉내 유지 */ });
     }
@@ -328,4 +276,4 @@ function createStage(host) {
 }
 
 // unlockAudio: 예전 API 호환용(이제 Web Audio를 쓰지 않으므로 할 일 없음)
-window.EEAvatarEngine = { supported: webglSupported(), createStage, unlockAudio: () => {}, analyzeClip };
+window.EEAvatarEngine = { supported: webglSupported(), createStage, unlockAudio: () => {} };

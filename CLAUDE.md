@@ -28,6 +28,8 @@ npm run stamp      # 배포 전: index.html 스크립트 주소에 ?v= 붙여 �
 | `tools/collect-speech.js`, `build-audio.py` | 앱이 읽는 문장 수집 → Kokoro 뉴럴 TTS로 `audio/*.m4a` + `js/data/audio-manifest.js` 생성 |
 | `src/avatar/engine.js` → `js/vendor/avatar.bundle.js` | 3D 대화 상대 엔진(three-vrm). `js/app/avatar.js`가 롤플레이에서 지연 로딩 |
 | `assets/avatars/` | VRM 모델 + `avatars.js` 목록 + `LICENSES.md` 근거 |
+| `assets/portraits/`, `js/app/portrait.js` | 2D 말하는 초상화(같은 구도 이미지 3장, 입·눈만 교차). 등록은 `node tools/portrait-add.mjs` |
+| `js/core/lipsync.js` | 립싱크 분석 — 3D·2D 공용 |
 | `js/data/cast.js` | 등장인물 성별 — 목소리·아바타 외형이 함께 따름 |
 | `tests/core.test.js` | grader/srs/plan 단위 테스트 (node:test) |
 | `_workspace/` | 하네스 중간 산출물, 모바일 프리뷰(`mobile.html`) |
@@ -44,6 +46,7 @@ npm run stamp      # 배포 전: index.html 스크립트 주소에 ?v= 붙여 �
 | 검수 | ee-qa |
 | 3D 아바타 렌더링·립싱크 | ee-avatar |
 | 아바타 모델 찾기·교체·라이선스 | avatar-assets |
+| 말하는 초상화 이미지 가이드·등록 | portrait-assets |
 
 ## 규칙
 

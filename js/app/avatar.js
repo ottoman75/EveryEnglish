@@ -1,5 +1,7 @@
 /*
- * 3D 대화 상대 — 화면 쪽 연결.
+ * 대화 상대 — 화면 쪽 연결. 인물마다 두 가지 중 하나로 보여준다:
+ *  1) 2D 말하는 초상화 (js/app/portrait.js) — assets/portraits/portraits.js에 그 인물의 이미지가 있으면 우선
+ *  2) 3D VRM 아바타 (js/vendor/avatar.bundle.js) — 초상화가 없을 때
  *  - 엔진(js/vendor/avatar.bundle.js, ~200KB gzip)과 모델(assets/avatars/*.vrm)은 롤플레이에 들어갈 때만 불러온다
  *  - 등장인물 성별(js/data/cast.js)에 맞는 모델을 고른다. 같은 챕터의 같은 인물은 항상 같은 모델
  *  - 실패하면(구형 기기·WebGL 없음·file://) 조용히 빠지고 기존 채팅 화면만 남는다
@@ -11,7 +13,8 @@
 
     function enabled() {
         var s = root.EEStore.get().settings;
-        return s.avatar !== false && (root.EE_AVATARS || []).length > 0;
+        var portraits = root.EE_PORTRAITS && Object.keys(root.EE_PORTRAITS.characters || {}).length;
+        return s.avatar !== false && ((root.EE_AVATARS || []).length > 0 || !!portraits);
     }
 
     function loadEngine() {
@@ -43,6 +46,14 @@
         var pool = list.filter(function (a) { return a.gender === gender; });
         if (!pool.length) pool = list;
         return pool[hash(speakerKey) % pool.length];
+    }
+
+    /** 인물 → 초상화 정의 (없으면 null → 3D) */
+    function portraitFor(speakerKey) {
+        var P = root.EE_PORTRAITS;
+        if (!P || !P.cast) return null;
+        var id = P.cast[speakerKey];
+        return id && P.characters[id] ? Object.assign({ id: id }, P.characters[id]) : null;
     }
 
     /**
@@ -78,33 +89,49 @@
             tapBtn.hidden = true;
             if (lastLine) root.EESpeech.speak(lastLine, { who: "partner" });
         });
-        var stage = null, alive = true, pendingKey = null, pendingName = "";
+        var stage3d = null, portrait = null, active = null, alive = true;
         var offStart, offEnd;
 
+        function ensure3d() {
+            if (stage3d) return Promise.resolve(stage3d);
+            return loadEngine().then(function (engine) {
+                if (!engine.supported) throw new Error("WebGL not supported");
+                if (!stage3d && alive) stage3d = engine.createStage(host);
+                return stage3d;
+            });
+        }
+
         function apply(key, name) {
-            var m = modelFor(key);
             nameEl.textContent = name || "";
-            if (!stage || !m) return;
-            creditEl.textContent = m.credit ? "Model: " + m.credit : "";
             host.classList.add("loading");
-            stage.show(m.file, { hide: m.hide || [] }).then(function () {
-                if (alive) host.classList.remove("loading");
-            }).catch(function (e) { fail(e); });
+            var pd = portraitFor(key);
+            if (pd && root.EEPortrait) {
+                if (stage3d) { stage3d.dispose(); stage3d = null; }
+                if (!portrait) portrait = root.EEPortrait.createPortrait(host);
+                active = portrait;
+                creditEl.textContent = pd.credit || "";
+                portrait.show(pd).then(function () { if (alive) host.classList.remove("loading"); }).catch(fail);
+                return;
+            }
+            if (portrait) { portrait.dispose(); portrait = null; }
+            var m = modelFor(key);
+            if (!m) { fail("no model"); return; }
+            creditEl.textContent = m.credit ? "Model: " + m.credit : "";
+            ensure3d().then(function (stage) {
+                if (!alive || !stage) return null;
+                active = stage;
+                return stage.show(m.file, { hide: m.hide || [] }).then(function () {
+                    if (alive) host.classList.remove("loading");
+                });
+            }).catch(fail);
         }
 
         function fail(err) {
             root.EEAvatar.lastError = String((err && err.message) || err || "unknown");
-            if (root.console) console.warn("[EEAvatar] 3D 대화 상대를 끕니다:", root.EEAvatar.lastError);
+            if (root.console) console.warn("[EEAvatar] 대화 상대를 끕니다:", root.EEAvatar.lastError);
             alive = false;
             container.innerHTML = "";        // 아바타 없이 계속
         }
-
-        loadEngine().then(function (engine) {
-            if (!alive) return;
-            if (!engine.supported) { fail("WebGL not supported"); return; }
-            stage = engine.createStage(host);
-            if (pendingKey) apply(pendingKey, pendingName);
-        }).catch(fail);  // 엔진 로딩 실패
 
         var speakingPartner = false;
         var onStart = function (info) {
@@ -113,11 +140,11 @@
             tapBtn.hidden = true;
             host.classList.add("talking");
             if (lastLine) showCaption(lastLine);
-            if (!stage) return;
-            if (info.audio) stage.speakAudio(info.audio, info.src); else stage.speakSynthetic();
+            if (!active) return;
+            if (info.audio) active.speakAudio(info.audio, info.src); else active.speakSynthetic();
         };
         var onEnd = function () {
-            if (stage) stage.stopSpeaking();
+            if (active) active.stopSpeaking();
             if (speakingPartner) hideCaptionSoon(1500);
             speakingPartner = false;
             host.classList.remove("talking");
@@ -134,28 +161,31 @@
 
         return {
             setSpeaker: function (key, name) {
-                pendingKey = key; pendingName = name;
+                if (key === this._key) { nameEl.textContent = name || ""; return; }
+                this._key = key;
                 apply(key, name);
             },
-            react: function (verdict) { if (stage) stage.react(verdict); },
+            react: function (verdict) { if (active) active.react(verdict); },
             /** 상대가 이제 말할 문장 — 자막으로 띄우고, 자동재생이 막히면 '탭해서 듣기'에 쓴다 */
             line: function (text, willSpeak) {
                 lastLine = text;
                 showCaption(text);
                 if (!willSpeak) hideCaptionSoon(3500);
             },
-            debug: function () { return stage && stage.debug ? stage.debug() : null; },
+            debug: function () { return active && active.debug ? active.debug() : null; },
+            mode: function () { return active === portrait && portrait ? "portrait" : active ? "3d" : null; },
             destroy: function () {
                 alive = false;
                 root.EESpeech.off("start", offStart);
                 root.EESpeech.off("end", offEnd);
                 root.EESpeech.off("blocked", onBlocked);
                 clearTimeout(captionTimer);
-                if (stage) stage.dispose();
-                stage = null;
+                if (stage3d) stage3d.dispose();
+                if (portrait) portrait.dispose();
+                stage3d = portrait = active = null;
             }
         };
     }
 
-    root.EEAvatar = { attach: attach, enabled: enabled, modelFor: modelFor };
+    root.EEAvatar = { attach: attach, enabled: enabled, modelFor: modelFor, portraitFor: portraitFor };
 })(window);

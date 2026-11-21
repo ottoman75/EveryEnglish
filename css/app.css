@@ -640,3 +640,20 @@ select { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-
     box-shadow: 0 10px 30px rgba(0, 0, 0, .25); animation: pulse 1.4s ease-in-out infinite;
 }
 .avatar-stage.talking { box-shadow: var(--shadow), 0 0 0 3px rgba(255, 255, 255, .55) inset; }
+
+/* ---------- 2D 말하는 초상화 ---------- */
+.avatar-stage.portrait-mode { height: clamp(300px, 52vh, 460px); }
+.portrait { position: absolute; inset: 0; z-index: 0; overflow: hidden; container-type: size; }
+/* 세로 초상화를 넓은 무대에 놓을 때 양옆은 같은 그림을 흐리게 — 영상 레터박스처럼 */
+.portrait-bg { position: absolute; inset: -24px; background-size: cover; background-position: center; filter: blur(22px) saturate(1.1) brightness(.85); }
+/* 이미지 비율(--ar)을 지키며 무대 안에 온전히 들어가게(contain) — 잘리면 입이 화면 밖으로 나간다 */
+.portrait-frame {
+    position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+    width: min(100cqw, calc(100cqh * var(--ar, .8))); aspect-ratio: var(--ar, .8);
+    transform-origin: 50% 85%; will-change: transform;
+}
+/* 초상화에서는 자막이 입을 가리지 않게 맨 아래(가슴 쪽)로, 이름표·크레딧은 위로 */
+.portrait-mode .avatar-caption { bottom: 14px; }
+.portrait-mode .avatar-name { top: 12px; bottom: auto; }
+.portrait-mode .avatar-credit { top: 14px; bottom: auto; }
+.portrait-frame .pl { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
