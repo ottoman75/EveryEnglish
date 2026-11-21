@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>seed</title>
+<script>
+// 모바일 에뮬레이션 테스트용: 127.0.0.1 출처에 테스트 기록을 심고 앱으로 이동 (사용자 기록과 분리)
+const q = new URLSearchParams(location.search);
+localStorage.setItem("everyenglish:v1", JSON.stringify({ version: 1, profile: { name: "Test", createdAt: "2026-11-21" },
+  settings: { rate: 0.95, autoSpeak: true, voiceURI: "", avatar: true },
+  progress: {}, wrongNotes: {}, words: {}, daily: {}, xp: 0,
+  inProgress: q.get("ch") ? { chapterId: q.get("ch"), stepIndex: +(q.get("step") || 17), attempts: {}, xp: 0 } : null }));
+location.replace("../index.html#" + (q.get("route") || ("/learn/" + (q.get("ch") || "cafe-order"))));
+</script>

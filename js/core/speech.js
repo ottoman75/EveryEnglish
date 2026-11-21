@@ -23,7 +23,7 @@
 
     // 말하기 시작/끝 알림 — 아바타 립싱크가 구독한다
     // start: { text, audio?: HTMLAudioElement (녹음일 때), synth: boolean }
-    var speechListeners = { start: [], end: [] };
+    var speechListeners = { start: [], end: [], blocked: [] };
     function emit(type, info) { speechListeners[type].forEach(function (fn) { try { fn(info); } catch (e) { /* 구독자 오류가 재생을 막지 않게 */ } }); }
 
     function clipFor(text) {
@@ -31,22 +31,75 @@
         return manifest.clips[key] ? manifest.base + manifest.clips[key] : null;
     }
 
+    // 오디오 요소는 하나만 만들어 계속 재사용한다.
+    // iPhone은 '사용자가 탭해서 한 번 재생된 요소'만 나중에(타이머 뒤에) 소리를 낼 수 있게 허용한다.
+    // 매번 new Audio()를 만들면 상대 대사(타이핑 연출 뒤 재생)가 전부 막혀 무음이 된다.
+    var player = null;
+    var unlocked = false;
+
+    function getPlayer() {
+        if (!player) {
+            player = new Audio();
+            player.preload = "auto";
+            player.preservesPitch = true;
+            player.setAttribute("playsinline", "");
+        }
+        return player;
+    }
+
+    // 0.05초 무음 WAV — 첫 탭에서 재생해 요소를 '허용된 상태'로 만든다
+    function silentWavUrl() {
+        var n = 400, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+        var w = function (o, str) { for (var i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+        w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+        v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true);
+        v.setUint16(34, 8, true); w(36, "data"); v.setUint32(40, n, true);
+        for (var i = 0; i < n; i++) v.setUint8(44 + i, 128);
+        return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+    }
+
+    function unlockPlayback() {
+        if (unlocked) return;
+        var a = getPlayer();
+        if (a.src && !a.paused) { unlocked = true; return; }   // 이미 재생 중이면 그 자체로 허용됨
+        a.src = silentWavUrl();
+        var p = a.play();
+        if (p && p.then) p.then(function () { unlocked = true; }).catch(function () { /* 다음 탭에서 다시 */ });
+        else unlocked = true;
+    }
+    ["touchend", "pointerup", "click", "keydown"].forEach(function (ev) {
+        root.addEventListener(ev, unlockPlayback, { capture: true, passive: true });
+    });
+
     function playClip(src, rate, who) {
         return new Promise(function (resolve) {
             stopSpeaking();
-            var a = new Audio(src);
-            a.crossOrigin = "anonymous";            // 립싱크 분석(Web Audio)에 필요
-            a.preservesPitch = true;
-            a.playbackRate = Math.max(0.5, Math.min(2, rate / DEFAULT_RATE));
-            a.onended = a.onerror = function () {
+            var a = getPlayer();
+            var done = false;
+            var finish = function () {
+                if (done) return;
+                done = true;
                 if (currentAudio === a) currentAudio = null;
                 emit("end", { text: src });
                 resolve();
             };
-            a.onplay = function () { emit("start", { text: src, audio: a, synth: false, who: who }); };
+            a.onended = finish;
+            a.onerror = finish;
+            a.onplay = function () { emit("start", { text: src, audio: a, src: src, synth: false, who: who }); };
+            a.src = src;
+            a.playbackRate = Math.max(0.5, Math.min(2, rate / DEFAULT_RATE));
             currentAudio = a;
             var p = a.play();
-            if (p && p.catch) p.catch(function () { resolve(); });
+            if (p && p.catch) {
+                p.catch(function (err) {
+                    // 자동재생 차단: 화면이 '탭해서 듣기'를 띄울 수 있게 알린다
+                    if (err && err.name === "NotAllowedError") emit("blocked", { src: src, who: who, rate: rate });
+                    a.onplay = null;
+                    done = true;
+                    if (currentAudio === a) currentAudio = null;
+                    resolve({ blocked: true });
+                });
+            }
         });
     }
 
@@ -123,7 +176,13 @@
     }
 
     function stopSpeaking() {
-        if (currentAudio) { currentAudio.pause(); currentAudio = null; emit("end", {}); }
+        if (currentAudio) {
+            var a = currentAudio;
+            currentAudio = null;
+            a.onended = a.onerror = a.onplay = null;
+            a.pause();
+            emit("end", {});
+        }
         if (synth) synth.cancel();
     }
 

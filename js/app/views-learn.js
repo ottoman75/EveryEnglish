@@ -211,8 +211,12 @@
                         if (!alive) return;
                         t.remove();
                         partnerBubble(line);
-                        if (avatar) avatar.setSpeaker(ch.id + ":" + line.name, line.name);
-                        if (Store.get().settings.autoSpeak) Speech.speak(line.en, { who: "partner" });
+                        var autoSpeak = Store.get().settings.autoSpeak;
+                        if (avatar) {
+                            avatar.setSpeaker(ch.id + ":" + line.name, line.name);
+                            avatar.line(line.en, autoSpeak);
+                        }
+                        if (autoSpeak) Speech.speak(line.en, { who: "partner" });
                         lineIndex++;
                         advance();
                     }, PARTNER_DELAY_MS);

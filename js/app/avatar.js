@@ -52,11 +52,32 @@
     function attach(container) {
         if (!enabled()) return null;
         container.innerHTML =
-            '<div class="avatar-stage loading" aria-hidden="true"><div class="avatar-loading"><span class="spinner"></span>대화 상대를 불러오는 중…</div>' +
+            '<div class="avatar-stage loading"><div class="avatar-loading" aria-hidden="true"><span class="spinner"></span>대화 상대를 불러오는 중…</div>' +
+            '<div class="avatar-caption en" aria-hidden="true"></div>' +
+            '<button class="avatar-tap" type="button" hidden>🔊 탭해서 대화 듣기</button>' +
             '<span class="avatar-name"></span><span class="avatar-credit"></span></div>';
         var host = container.querySelector(".avatar-stage");
         var nameEl = host.querySelector(".avatar-name");
         var creditEl = host.querySelector(".avatar-credit");
+        var captionEl = host.querySelector(".avatar-caption");
+        var tapBtn = host.querySelector(".avatar-tap");
+        var lastLine = "", captionTimer = null;
+
+        function showCaption(text) {
+            clearTimeout(captionTimer);
+            captionEl.textContent = text;
+            captionEl.classList.toggle("on", !!text);
+        }
+        function hideCaptionSoon(ms) {
+            clearTimeout(captionTimer);
+            captionTimer = setTimeout(function () { captionEl.classList.remove("on"); }, ms);
+        }
+        // 자동재생이 막힌 기기(첫 진입 직후의 iPhone 등): 탭 한 번이면 이후 대사는 자동으로 나온다
+        tapBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            tapBtn.hidden = true;
+            if (lastLine) root.EESpeech.speak(lastLine, { who: "partner" });
+        });
         var stage = null, alive = true, pendingKey = null, pendingName = "";
         var offStart, offEnd;
 
@@ -85,13 +106,30 @@
             if (pendingKey) apply(pendingKey, pendingName);
         }).catch(fail);  // 엔진 로딩 실패
 
+        var speakingPartner = false;
         var onStart = function (info) {
-            if (!stage || info.who !== "partner") return;
-            if (info.audio) stage.speakAudio(info.audio); else stage.speakSynthetic();
+            speakingPartner = info.who === "partner";
+            if (!speakingPartner) return;
+            tapBtn.hidden = true;
+            host.classList.add("talking");
+            if (lastLine) showCaption(lastLine);
+            if (!stage) return;
+            if (info.audio) stage.speakAudio(info.audio, info.src); else stage.speakSynthetic();
         };
-        var onEnd = function () { if (stage) stage.stopSpeaking(); };
+        var onEnd = function () {
+            if (stage) stage.stopSpeaking();
+            if (speakingPartner) hideCaptionSoon(1500);
+            speakingPartner = false;
+            host.classList.remove("talking");
+        };
+        var onBlocked = function (info) {
+            if (info.who !== "partner") return;
+            tapBtn.hidden = false;
+            if (lastLine) showCaption(lastLine);
+        };
         root.EESpeech.on("start", onStart);
         root.EESpeech.on("end", onEnd);
+        root.EESpeech.on("blocked", onBlocked);
         offStart = onStart; offEnd = onEnd;
 
         return {
@@ -100,11 +138,19 @@
                 apply(key, name);
             },
             react: function (verdict) { if (stage) stage.react(verdict); },
+            /** 상대가 이제 말할 문장 — 자막으로 띄우고, 자동재생이 막히면 '탭해서 듣기'에 쓴다 */
+            line: function (text, willSpeak) {
+                lastLine = text;
+                showCaption(text);
+                if (!willSpeak) hideCaptionSoon(3500);
+            },
             debug: function () { return stage && stage.debug ? stage.debug() : null; },
             destroy: function () {
                 alive = false;
                 root.EESpeech.off("start", offStart);
                 root.EESpeech.off("end", offEnd);
+                root.EESpeech.off("blocked", onBlocked);
+                clearTimeout(captionTimer);
                 if (stage) stage.dispose();
                 stage = null;
             }

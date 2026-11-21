@@ -20,8 +20,13 @@ const MOUTH = ["aa", "ih", "ou", "ee", "oh"];
 const CAMERA_FOV = 24;
 const FRAME_DISTANCE = 1.35;          // 머리~어깨가 들어오는 거리(m)
 const BLINK_MIN_S = 1.8, BLINK_MAX_S = 5.5;
+// 입 모양 판정용 영점교차율 경계 — Kokoro 녹음 유성음 실측(2026-11-21): p25 0.027 · p50 0.041 · p75 0.06 · p90 0.105
+// 상위 ~25%는 이/에, 하위 ~25%는 우/오, 나머지는 아
+const EE_ZCR = [0.055, 0.095];
+const OU_ZCR = [0.022, 0.034];
 
-let audioCtx = null;
+const ANALYSIS_FPS = 60;
+const analysisCache = new Map();      // src → Promise<{ level: Float32Array, zcr: Float32Array }>
 const modelCache = new Map();         // url → Promise<gltf>
 
 function webglSupported() {
@@ -33,17 +38,44 @@ function webglSupported() {
     }
 }
 
-// 오디오 분석은 사용자 터치 이후 '실행 중'인 컨텍스트에서만 한다.
-// 잠긴(suspended) 컨텍스트로 음성을 돌리면 소리가 안 나기 때문
-function unlockAudio() {
-    if (!audioCtx) {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) return;
-        audioCtx = new Ctx();
+/*
+ * 립싱크 분석: 재생 중인 오디오를 Web Audio로 돌리지 않고, 같은 녹음 파일을 따로 받아 미리 분석한다.
+ * (iPhone은 AudioContext가 잠기면 그쪽으로 돌린 소리가 통째로 사라진다 — 소리 재생을 분석에 의존하지 않기 위해)
+ * 프레임(1/60초)마다 RMS 음량과 영점교차율(ZCR, 높을수록 '이/스' 같은 날카로운 소리)을 계산한다.
+ */
+function analyzeClip(src) {
+    if (!analysisCache.has(src)) {
+        const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        const job = fetch(src).then((r) => r.arrayBuffer()).then((buf) => new Promise((resolve, reject) => {
+            const ctx = new Offline(1, 2, 24000);
+            const p = ctx.decodeAudioData(buf, resolve, reject);   // 구형 Safari는 콜백 방식만 지원
+            if (p && p.then) p.then(resolve, reject);
+        })).then((audio) => {
+            const x = audio.getChannelData(0), sr = audio.sampleRate;
+            const hop = Math.floor(sr / ANALYSIS_FPS), win = hop * 2;
+            const n = Math.max(1, Math.floor(x.length / hop));
+            const rms = new Float32Array(n), zcr = new Float32Array(n);
+            for (let f = 0; f < n; f++) {
+                let sq = 0, zc = 0;
+                const s0 = f * hop, s1 = Math.min(x.length, s0 + win);
+                for (let i = s0; i < s1; i++) {
+                    sq += x[i] * x[i];
+                    if (i > s0 && (x[i] >= 0) !== (x[i - 1] >= 0)) zc++;
+                }
+                rms[f] = Math.sqrt(sq / Math.max(1, s1 - s0));
+                zcr[f] = zc / Math.max(1, s1 - s0);
+            }
+            // 문장 안에서 상대값으로 (95번째 백분위를 최대로) — 녹음마다 음량이 달라도 같은 폭으로 움직이게
+            const sorted = Array.from(rms).sort((p, q) => p - q);
+            const peak = sorted[Math.floor(sorted.length * 0.95)] || 1e-4;
+            const level = rms.map((v) => Math.min(1.2, v / peak));
+            return { level, zcr };
+        });
+        job.catch(() => analysisCache.delete(src));
+        analysisCache.set(src, job);
     }
-    if (audioCtx.state === "suspended") audioCtx.resume();
+    return analysisCache.get(src);
 }
-["pointerdown", "touchend", "keydown"].forEach((ev) => window.addEventListener(ev, unlockAudio, { passive: true }));
 
 function loadModel(url) {
     if (!modelCache.has(url)) {
@@ -80,6 +112,8 @@ function createStage(host) {
     let mood = { name: null, value: 0, until: 0 };
     let elapsed = 0;
     let lastRaw = null;
+    let talkLevel = 0;
+    let speakToken = 0;                 // 말하는 세기(0~1) — 고개 끄덕임·몸짓에 쓴다
 
     function resize() {
         const w = host.clientWidth || 1, h = host.clientHeight || 1;
@@ -150,43 +184,34 @@ function createStage(host) {
 
     function updateMouth(dt) {
         let target = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
-        if (speaking && speaking.analyser) {
-            const { analyser, data, wave } = speaking;
-            // 입 벌림: 파형의 실제 크기(RMS, 선형). 주파수 데이터는 dB 눈금이라 조용한 구간도 커 보여 입이 계속 열린다
-            analyser.getFloatTimeDomainData(wave);
-            let sq = 0;
-            for (let i = 0; i < wave.length; i++) sq += wave[i] * wave[i];
-            const rms = Math.sqrt(sq / wave.length);
-            speaking.peak = Math.max(rms, speaking.peak * 0.995);          // 문장마다 음량이 달라도 같은 폭으로
-            const open = smoothstep(0.18, 0.75, rms / speaking.peak);
-            // 입 모양: 주파수 대역 비중 (측정값: 고음 비중 0.14~0.28, 저음 비중 0.42~0.60)
-            analyser.getByteFrequencyData(data);
-            const hz = audioCtx.sampleRate / 2 / data.length;
-            const band = (lo, hi) => {
-                let s = 0, n = 0;
-                for (let i = Math.floor(lo / hz); i <= Math.min(data.length - 1, Math.ceil(hi / hz)); i++) { s += data[i]; n++; }
-                return n ? s / n / 255 : 0;
-            };
-            const low = band(250, 900), mid = band(900, 2000), high = band(2000, 4200);
-            lastRaw = { low, mid, high, rms, level: rms / speaking.peak };
-            const total = low + mid + high + 1e-4;
-            const ee = open * smoothstep(0.19, 0.3, high / total);        // 이/에
-            const ou = open * smoothstep(0.47, 0.57, low / total) * 0.9;  // 우/오
+        if (speaking && speaking.track) {
+            const { track, audio } = speaking;
+            const i = Math.min(track.level.length - 1, Math.max(0, Math.floor(audio.currentTime * ANALYSIS_FPS)));
+            const level = track.level[i], zcr = track.zcr[i];
+            const open = smoothstep(0.18, 0.75, level);
+            lastRaw = { level, zcr };
+            const ee = open * smoothstep(EE_ZCR[0], EE_ZCR[1], zcr);           // 날카로운 소리 → 이/에
+            const ou = open * (1 - smoothstep(OU_ZCR[0], OU_ZCR[1], zcr)) * 0.9; // 둔한 소리 → 우/오
             target = { aa: Math.max(0, open - Math.max(ee, ou) * 0.8), ee, ih: ee * 0.35, ou, oh: ou * 0.5 };
-            // 모양이 겹쳐도 전체 벌림은 open(최대 0.9)을 넘지 않게 — 넘으면 입이 과장돼 보인다
             const sum = target.aa + target.ee + target.ih + target.ou + target.oh;
             const cap = open * 0.9;
             if (sum > cap && sum > 0) MOUTH.forEach((k) => { target[k] *= cap / sum; });
+            talkLevel += (open - talkLevel) * Math.min(1, 12 * dt);
         } else if (speaking && speaking.synthetic) {
             // 녹음이 없을 때(기기 음성): 리듬만 흉내
             const o = 0.35 + 0.35 * Math.sin(elapsed * 17) * Math.sin(elapsed * 5.3);
             target = { aa: Math.max(0, o), ih: 0, ou: 0, ee: 0, oh: Math.max(0, o * 0.3) };
+            talkLevel += (Math.max(0, o) - talkLevel) * Math.min(1, 12 * dt);
         }
+        if (!speaking) talkLevel += (0 - talkLevel) * Math.min(1, 6 * dt);
         MOUTH.forEach((k) => {
             const rate = target[k] > mouth[k] ? 28 : 14;            // 열 때 빠르게, 닫을 때 부드럽게
             mouth[k] += (target[k] - mouth[k]) * Math.min(1, rate * dt);
-            setExpr(k, mouth[k]);
         });
+        // 모양이 바뀌는 순간 각 값이 따로 부드러워지며 합이 넘칠 수 있다 → 전체 벌림 상한
+        const total = MOUTH.reduce((n, k) => n + mouth[k], 0);
+        if (total > 0.9) MOUTH.forEach((k) => { mouth[k] *= 0.9 / total; });
+        MOUTH.forEach((k) => setExpr(k, mouth[k]));
     }
 
     function updateBlink(dt) {
@@ -214,24 +239,37 @@ function createStage(host) {
         mood.value += (goal * mood.peak - mood.value) * Math.min(1, 6 * dt);
         if (mood.name) setExpr(mood.name, mood.value);
         if (goal === 0 && mood.value < 0.01 && mood.name) { setExpr(mood.name, 0); mood.name = null; }
-        // 평소에도 살짝 미소
-        if (mood.name !== "happy") setExpr("relaxed", 0.25);
+        if (mood.name === "happy" || mood.name === "sad") setExpr("relaxed", 0);
     }
 
     function updateIdle() {
         const h = vrm.humanoid;
         const t = elapsed;
-        const talk = speaking ? 1 : 0;
-        const neck = h.getNormalizedBoneNode("neck");
-        const spine = h.getNormalizedBoneNode("spine");
-        const chest = h.getNormalizedBoneNode("chest") || h.getNormalizedBoneNode("upperChest");
+        const talking = speaking ? 1 : 0;
+        const bone = (n) => h.getNormalizedBoneNode(n);
+        const neck = bone("neck"), head = bone("head"), spine = bone("spine");
+        const chest = bone("chest") || bone("upperChest");
         if (neck) {
-            neck.rotation.y = Math.sin(t * 0.6) * 0.05 + talk * Math.sin(t * 2.1) * 0.035;
-            neck.rotation.x = Math.sin(t * 0.8) * 0.02 + talk * Math.sin(t * 3.3) * 0.025;
-            neck.rotation.z = Math.sin(t * 0.45) * 0.025;
+            // 음절 세기만큼 고개를 살짝 숙였다 드는 '말하는 끄덕임' + 느린 좌우 시선 이동
+            neck.rotation.x = Math.sin(t * 0.8) * 0.02 + talkLevel * 0.06;
+            neck.rotation.y = Math.sin(t * 0.6) * 0.06 + talking * Math.sin(t * 1.7) * 0.05;
+            neck.rotation.z = Math.sin(t * 0.45) * 0.03 + talking * Math.sin(t * 1.3) * 0.025;
         }
-        if (spine) spine.rotation.y = Math.sin(t * 0.35) * 0.02;
-        if (chest) chest.rotation.x = Math.sin(t * 1.6) * 0.012;        // 숨쉬기
+        if (head) head.rotation.x = talking * Math.sin(t * 4.1) * 0.012;
+        if (spine) {
+            spine.rotation.y = Math.sin(t * 0.35) * 0.03;
+            spine.rotation.x = talking * 0.025;                              // 말할 때 상대 쪽으로 살짝 기울기
+        }
+        if (chest) chest.rotation.x = Math.sin(t * 1.6) * 0.015;             // 숨쉬기
+        // 말하는 동안 손짓: 팔꿈치를 조금씩 굽혔다 편다
+        const la = bone("leftLowerArm"), ra = bone("rightLowerArm");
+        const lu = bone("leftUpperArm"), ru = bone("rightUpperArm");
+        const g = talking * (0.5 + talkLevel);
+        if (la) la.rotation.y = -0.25 - g * (0.18 + Math.sin(t * 2.3) * 0.12);
+        if (ra) ra.rotation.y = 0.25 + g * (0.22 + Math.sin(t * 2.7 + 1) * 0.14);
+        if (lu) lu.rotation.z = -1.2 + Math.sin(t * 0.9) * 0.02 + g * 0.06;
+        if (ru) ru.rotation.z = 1.2 - Math.sin(t * 1.1) * 0.02 - g * 0.08;
+        if (mood.name !== "happy" && mood.name !== "sad") setExpr("relaxed", 0.2 + talking * 0.2);
     }
 
     function loop() {
@@ -248,30 +286,16 @@ function createStage(host) {
         renderer.render(scene, camera);
     }
 
-    function speakAudio(audio) {
-        if (!audioCtx || audioCtx.state !== "running") { speakSynthetic(); return; }
-        try {
-            if (!audio.__eeSource) {
-                audio.__eeSource = audioCtx.createMediaElementSource(audio);
-                const analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 1024;
-                analyser.smoothingTimeConstant = 0.3;
-                audio.__eeSource.connect(analyser);
-                analyser.connect(audioCtx.destination);
-                audio.__eeAnalyser = analyser;
-            }
-            const analyser = audio.__eeAnalyser;
-            speaking = {
-                analyser, data: new Uint8Array(analyser.frequencyBinCount),
-                wave: new Float32Array(analyser.fftSize), peak: 0.05
-            };
-        } catch (e) {
-            speakSynthetic();
-        }
+    function speakAudio(audio, src) {
+        speaking = { synthetic: true };
+        const token = (speakToken = (speakToken || 0) + 1);
+        analyzeClip(src || audio.currentSrc || audio.src).then((track) => {
+            if (token === speakToken && speaking) speaking = { track, audio };
+        }).catch(() => { /* 분석 실패 시 리듬 흉내 유지 */ });
     }
 
     function speakSynthetic() { speaking = { synthetic: true }; }
-    function stopSpeaking() { speaking = null; }
+    function stopSpeaking() { speaking = null; speakToken = (speakToken || 0) + 1; }
 
     const REACTIONS = {
         correct: { name: "happy", peak: 0.85, ms: 1600 },
@@ -297,10 +321,11 @@ function createStage(host) {
 
     // 점검용: 현재 입 모양·표정 값 (테스트·디버그에서만 읽는다)
     function debug() {
-        return { raw: lastRaw, mouth: { ...mouth }, mood: mood.name, moodValue: mood.value, speaking: speaking ? (speaking.analyser ? "audio" : "synthetic") : null };
+        return { raw: lastRaw, mouth: { ...mouth }, mood: mood.name, moodValue: mood.value, speaking: speaking ? (speaking.track ? "audio" : "synthetic") : null };
     }
 
     return { show, speakAudio, speakSynthetic, stopSpeaking, react, dispose, debug };
 }
 
-window.EEAvatarEngine = { supported: webglSupported(), createStage, unlockAudio };
+// unlockAudio: 예전 API 호환용(이제 Web Audio를 쓰지 않으므로 할 일 없음)
+window.EEAvatarEngine = { supported: webglSupported(), createStage, unlockAudio: () => {}, analyzeClip };

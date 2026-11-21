@@ -10,6 +10,7 @@ localStorage.setItem("everyenglish:v1", JSON.stringify({ version: 1, profile: { 
   progress: {}, wrongNotes: {}, words: {}, daily: {}, xp: 0,
   inProgress: { chapterId: chapter, stepIndex: step, attempts: {}, xp: 0 } }));
 const f = document.getElementById("f");
+f.style.width = (q.get("w") || 390) + "px";
 f.src = "../index.html#/learn/" + chapter;
 f.onload = () => {
   const w = f.contentWindow;
