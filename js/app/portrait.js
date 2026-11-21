@@ -2,6 +2,7 @@
  * 2D '말하는 초상화' — 같은 구도의 이미지 3~5장을 겹쳐, 녹음에 맞춰 입·눈만 바꾸고 고개를 움직인다.
  *   base  : 입 다문 기본 (필수)      talk : 입 벌림 '아' (필수)      blink : 눈 감음 (필수)
  *   talkS : 살짝 벌린 입 (선택 — 있으면 작은 소리는 talkS, 큰 소리는 talk로 2단계)
+ *   ※ talk는 '적당히' 벌린 입(윗니, 혀 X). 크게 벌린 '아~' 입은 소리 지르는 것처럼 보인다
  *   talkO : 입 오므림 '우/오' (선택) smile: 활짝 웃음 (선택, 정답 반응)
  * 입·눈 영역은 마스크로만 드러낸다 → 생성 AI가 변형 이미지의 다른 부분을 조금 다르게 그려도 티가 안 난다.
  * 영역 좌표(mouth/eyes)는 이미지 기준 비율(0~1). tools/portrait-detect 로 얼굴 인식해 자동으로 채운다.
@@ -55,6 +56,21 @@
 
         function setOpacity(el, v) { if (el) el.style.opacity = v.toFixed(3); }
 
+        // 입 상태: closed / talkS(살짝) / talk(벌림). 경계에 여유(히스테리시스)를 두고, 최소 유지 시간 동안은 바꾸지 않는다
+        var MOUTH_HOLD_MS = 70;
+        var mouthState = "closed", mouthSince = 0;
+        function pickMouth(open, now) {
+            var hasS = !!els.talkS;
+            var next = mouthState;
+            var up = hasS ? { closed: 0.14, talkS: 0.55 } : { closed: 0.3 };
+            var down = hasS ? { talkS: 0.09, talk: 0.45 } : { talk: 0.22 };
+            if (mouthState === "closed" && open > up.closed) next = hasS ? (open > up.talkS ? "talk" : "talkS") : "talk";
+            else if (mouthState === "talkS") next = open > up.talkS ? "talk" : open < down.talkS ? "closed" : "talkS";
+            else if (mouthState === "talk") next = open < (hasS ? down.talk : down.talk) ? (hasS && open > down.talkS ? "talkS" : "closed") : "talk";
+            if (next !== mouthState && now - mouthSince >= MOUTH_HOLD_MS) { mouthState = next; mouthSince = now; }
+            return mouthState;
+        }
+
         function loop() {
             raf = requestAnimationFrame(loop);
             var now = performance.now(), dt = Math.min(0.1, (now - last) / 1000);
@@ -77,14 +93,10 @@
                 mouth[k] += (target[k] - mouth[k]) * Math.min(1, rate * dt);
             });
             // 이미지 교차는 0~1 불투명도: 반쯤 벌린 입은 두 이미지가 섞여 중간 모양처럼 보인다
-            if (els.talkS) {
-                // 2단계: 살짝 벌린 입이 먼저 나타나고, 크게 벌릴 때 큰 입으로 넘어간다
-                var sm = LS().smoothstep;
-                setOpacity(els.talkS, sm(0.05, 0.35, mouth.open));
-                setOpacity(els.talk, sm(0.45, 0.85, mouth.open));
-            } else {
-                setOpacity(els.talk, Math.min(1, mouth.open * 1.4));
-            }
+            // 입 모양은 섞지 않고 한 장씩 바꾼다(만화 립싱크 방식). 반투명으로 섞으면 입술이 이중으로 보인다
+            var want = pickMouth(mouth.open, now);
+            setOpacity(els.talkS, want === "talkS" ? 1 : 0);
+            setOpacity(els.talk, want === "talk" ? 1 : 0);
             setOpacity(els.talkO, Math.min(1, mouth.round * 1.4));
             talkLevel += ((mouth.open + mouth.round) - talkLevel) * Math.min(1, 10 * dt);
 

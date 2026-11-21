@@ -83,6 +83,10 @@ VARIANTS = {
     "talk": ("close-up of a Pixar-style 3D cartoon face speaking calmly, lips slightly parted mid-sentence, small natural mouth opening, "
              "hint of upper teeth, relaxed friendly expression, same skin tone and lip color",
              "closed mouth, wide open mouth, screaming, shouting, yelling, big teeth, tongue out, lipstick, deformed teeth, extra mouth"),
+    # 2단계 입의 큰 쪽(권장): 적당히 벌린 입 — 윗니만, 혀 X. talkBig처럼 크게 벌리면 말할 때 소리 지르는 것처럼 보인다
+    "talkMid": ("close-up of a Pixar-style 3D cartoon face speaking, mouth moderately open mid-sentence as if saying eh, "
+                "upper teeth visible, no tongue, natural relaxed lips, same skin tone and lip color",
+                "closed mouth, wide open mouth, screaming, yawning, tongue, lower teeth, deformed teeth, extra mouth"),
     # 2단계 입의 큰 쪽 — 크게 잡은 영역 + '아' 발음 (talk_5 방식이 자연스러웠다)
     "talkBig": ("close-up of a Pixar-style 3D cartoon face talking, mouth open mid-word saying ah, upper teeth and tongue visible, "
                 "same skin tone and lip color", "closed mouth, closed lips, smile, smirk, screaming, deformed teeth, extra mouth"),
@@ -97,6 +101,9 @@ def regions_for(name, mouth, eyes):
     if name == "talk":
         x, y, rx, ry = mouth
         return [(x, y - ry * 0.2, rx * 0.6, ry * 0.75)]       # 크게 잡으면 소리 지르는 입이 된다
+    if name == "talkMid":
+        x, y, rx, ry = mouth
+        return [(x, y - ry * 0.18, rx * 0.66, ry * 0.85)]
     if name == "talkBig":
         x, y, rx, ry = mouth
         return [(x, y - ry * 0.15, rx * 0.75, ry * 0.95)]
@@ -131,7 +138,7 @@ def cmd_variants(a):
     crop = base.crop(box)
     scale = CROP_PX / crop.width
     crop_big = crop.resize((CROP_PX, int(crop.height * scale)), Image.LANCZOS)
-    names = a.only or ["talk", "talkBig"]      # 감은 눈은 'blink' 하위 명령(직접 그리기)으로
+    names = a.only or ["talk", "talkMid"]      # 감은 눈은 'blink' 하위 명령(직접 그리기)으로
     for name in names:
         prompt, neg = VARIANTS[name]
         ell = regions_for(name, mouth, eyes)
@@ -207,7 +214,7 @@ def main():
     v.add_argument("--mouth", required=True); v.add_argument("--eyes", required=True)
     v.add_argument("--seeds", type=int, nargs="+", default=[5, 6])
     v.add_argument("--strength", type=float, default=0.99)
-    v.add_argument("--only", nargs="+", choices=["talk", "talkBig", "blink"])
+    v.add_argument("--only", nargs="+", choices=["talk", "talkMid", "talkBig", "blink"])
     k = sub.add_parser("blink")
     k.add_argument("id"); k.add_argument("--base", required=True)
     k.add_argument("--eyeL", required=True); k.add_argument("--eyeR", required=True)
