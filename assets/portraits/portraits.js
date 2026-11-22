@@ -35,7 +35,32 @@
                 "ry": 0.0196
             },
             "aspect": 0.7998,
-            "credit": ""
+            "credit": "",
+            "videos": {
+                "54d81a716515f3b5.m4a": "assets/portraits/barista-f/v/54d81a716515f3b5.mp4",
+                "072ed8908bfda158.m4a": "assets/portraits/barista-f/v/072ed8908bfda158.mp4",
+                "fbdd85b43beda160.m4a": "assets/portraits/barista-f/v/fbdd85b43beda160.mp4",
+                "8115a7f9975b7e9c.m4a": "assets/portraits/barista-f/v/8115a7f9975b7e9c.mp4",
+                "b6cd4dcfca1d0642.m4a": "assets/portraits/barista-f/v/b6cd4dcfca1d0642.mp4",
+                "0d3a1e16acefd721.m4a": "assets/portraits/barista-f/v/0d3a1e16acefd721.mp4",
+                "fa89b6baefa0fb72.m4a": "assets/portraits/barista-f/v/fa89b6baefa0fb72.mp4",
+                "8ee6113c1223298a.m4a": "assets/portraits/barista-f/v/8ee6113c1223298a.mp4",
+                "655ab99a91e2ec95.m4a": "assets/portraits/barista-f/v/655ab99a91e2ec95.mp4",
+                "ff77c0d3e3eb6859.m4a": "assets/portraits/barista-f/v/ff77c0d3e3eb6859.mp4",
+                "a58db1053a8a3a4d.m4a": "assets/portraits/barista-f/v/a58db1053a8a3a4d.mp4",
+                "d6947af26f2dc555.m4a": "assets/portraits/barista-f/v/d6947af26f2dc555.mp4",
+                "798338a830625f65.m4a": "assets/portraits/barista-f/v/798338a830625f65.mp4",
+                "a2bace045166da89.m4a": "assets/portraits/barista-f/v/a2bace045166da89.mp4",
+                "c7dcd71051f0eeaf.m4a": "assets/portraits/barista-f/v/c7dcd71051f0eeaf.mp4",
+                "6f4e3e700cd2f263.m4a": "assets/portraits/barista-f/v/6f4e3e700cd2f263.mp4",
+                "e63f6801a125c989.m4a": "assets/portraits/barista-f/v/e63f6801a125c989.mp4"
+            },
+            "videoBox": {
+                "x0": 0.2763,
+                "y0": 0.378,
+                "x1": 0.7025,
+                "y1": 0.6962
+            }
         },
         "host-m": {
             "base": "assets/portraits/host-m/base.jpg",
@@ -67,7 +92,21 @@
                 "ry": 0.0183
             },
             "aspect": 0.7998,
-            "credit": ""
+            "credit": "",
+            "videos": {
+                "07be33d8842f1271.m4a": "assets/portraits/host-m/v/07be33d8842f1271.mp4",
+                "0e66225ea4b8b691.m4a": "assets/portraits/host-m/v/0e66225ea4b8b691.mp4",
+                "394a6c88b65e0f9a.m4a": "assets/portraits/host-m/v/394a6c88b65e0f9a.mp4",
+                "4975edf2283f9897.m4a": "assets/portraits/host-m/v/4975edf2283f9897.mp4",
+                "f47183acb28f6b9e.m4a": "assets/portraits/host-m/v/f47183acb28f6b9e.mp4",
+                "8b70e265ece5ce4f.m4a": "assets/portraits/host-m/v/8b70e265ece5ce4f.mp4"
+            },
+            "videoBox": {
+                "x0": 0.3591,
+                "y0": 0.3477,
+                "x1": 0.6863,
+                "y1": 0.7063
+            }
         }
     },
     "cast": {

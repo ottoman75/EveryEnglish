@@ -6,6 +6,9 @@
  *   talkO : 입 오므림 '우/오' (선택) smile: 활짝 웃음 (선택, 정답 반응)
  * 입·눈 영역은 마스크로만 드러낸다 → 생성 AI가 변형 이미지의 다른 부분을 조금 다르게 그려도 티가 안 난다.
  * 영역 좌표(mouth/eyes)는 이미지 기준 비율(0~1). tools/portrait-detect 로 얼굴 인식해 자동으로 채운다.
+ *
+ * 입 영상(선택, 권장): videos { "<녹음파일명>.m4a": "assets/portraits/<id>/v/<..>.mp4" } + videoBox {x0,y0,x1,y1}
+ *   SadTalker로 미리 만든 '그 대사의 입·턱 움직임' 영상. 있으면 입은 영상으로(녹음 재생 시각에 맞춰), 없으면 이미지 3장 전환.
  */
 (function (root) {
     "use strict";
@@ -27,6 +30,7 @@
         var def = null, raf = 0, disposed = false, visible = true;
         var speaking = null, mouth = { open: 0, round: 0 }, talkLevel = 0;
         var nextBlink = 2, blinkT = -1, mood = { kind: null, until: 0, v: 0 };
+        var videoOn = false;
         var last = performance.now(), t = 0;
         var els = {};
 
@@ -47,6 +51,18 @@
                 }).join("") + "</div>";
             els = { frame: wrap.querySelector(".portrait-frame") };
             layers.forEach(function (k) { els[k] = wrap.querySelector(".pl-" + k); });
+            if (d.videos && d.videoBox) {
+                // 입 영상: 입·턱 상자에만, 가장자리를 부드럽게. 눈 깜빡임 층보다 아래
+                var v = document.createElement("video");
+                v.className = "pl pl-video";
+                v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.setAttribute("muted", "");
+                v.preload = "auto";
+                var b = d.videoBox;
+                v.style.cssText = "left:" + (b.x0 * 100) + "%;top:" + (b.y0 * 100) + "%;width:" + ((b.x1 - b.x0) * 100) + "%;height:" +
+                    ((b.y1 - b.y0) * 100) + "%;inset:auto;opacity:0;" + maskCSS({ x: 0.5, y: 0.5, rx: 0.5, ry: 0.5 }, 62);
+                els.frame.insertBefore(v, els.blink || null);
+                els.video = v;
+            }
             // 모든 이미지가 로드돼야 깜빡임 때 빈 화면이 안 보인다
             return Promise.all(layers.map(function (k) {
                 var img = els[k];
@@ -93,8 +109,17 @@
                 mouth[k] += (target[k] - mouth[k]) * Math.min(1, rate * dt);
             });
             // 이미지 교차는 0~1 불투명도: 반쯤 벌린 입은 두 이미지가 섞여 중간 모양처럼 보인다
+            // 입 영상이 재생 중이면 영상이 입을 맡는다(녹음 재생 시각에 맞춰 보정)
+            if (videoOn && els.video) {
+                var a = speaking && speaking.audio;
+                if (a && !els.video.paused && Math.abs(els.video.currentTime - a.currentTime) > 0.08) els.video.currentTime = a.currentTime;
+                setOpacity(els.talkS, 0); setOpacity(els.talk, 0);
+                setOpacity(els.video, 1);
+            } else if (els.video) {
+                setOpacity(els.video, 0);
+            }
             // 입 모양은 섞지 않고 한 장씩 바꾼다(만화 립싱크 방식). 반투명으로 섞으면 입술이 이중으로 보인다
-            var want = pickMouth(mouth.open, now);
+            var want = videoOn ? "closed" : pickMouth(mouth.open, now);
             setOpacity(els.talkS, want === "talkS" ? 1 : 0);
             setOpacity(els.talk, want === "talk" ? 1 : 0);
             setOpacity(els.talkO, Math.min(1, mouth.round * 1.4));
@@ -124,8 +149,23 @@
             els.frame.style.transform = "translate(" + tx.toFixed(2) + "%," + ty.toFixed(2) + "%) rotate(" + rot.toFixed(2) + "deg) scale(" + sc.toFixed(4) + ")";
         }
 
+        function startVideo(audio, src) {
+            if (!els.video || !def.videos) return false;
+            var key = String(src || "").split("/").pop().split("?")[0];
+            var file = def.videos[key];
+            if (!file) return false;
+            var v = els.video;
+            if (v.getAttribute("src") !== file) v.src = file;
+            v.currentTime = 0;
+            var p = v.play();
+            videoOn = true;
+            if (p && p.catch) p.catch(function () { videoOn = false; });   // 재생 실패 시 이미지 방식으로
+            return true;
+        }
+
         function speakAudio(audio, src) {
-            speaking = { synthetic: true };
+            speaking = { synthetic: true, audio: audio };
+            startVideo(audio, src);
             var token = (speakAudio.token = (speakAudio.token || 0) + 1);
             LS().analyzeClip(src || audio.currentSrc || audio.src).then(function (track) {
                 if (token === speakAudio.token && speaking) speaking = { track: track, audio: audio };
@@ -136,7 +176,11 @@
             show: show,
             speakAudio: speakAudio,
             speakSynthetic: function () { speaking = { synthetic: true }; },
-            stopSpeaking: function () { speaking = null; speakAudio.token = (speakAudio.token || 0) + 1; },
+            stopSpeaking: function () {
+                speaking = null; speakAudio.token = (speakAudio.token || 0) + 1;
+                videoOn = false;
+                if (els.video) els.video.pause();
+            },
             react: function (verdict) {
                 var kind = verdict === "wrong" ? "sad" : "happy";
                 mood = { kind: kind, until: performance.now() + (verdict === "correct" ? 1600 : 1100), v: mood.kind === kind ? mood.v : 0 };

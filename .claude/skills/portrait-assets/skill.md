@@ -27,6 +27,18 @@ description: "EveryEnglish 2D '말하는 초상화' 대화 상대의 이미지 �
 5. 실패 경험(스크립트에 반영됨): 다시 그릴 때 기본 스타일 문장(입 다문 미소)을 섞으면 입이 안 열린다 / 영역을 크게 잡으면 소리 지르는 입 / 얼굴 크게만 요청하면 회색 스튜디오 배경
 6. 중간 산출물 `_workspace/portraits/`는 커밋하지 않는다(.gitignore)
 
+## 입 영상 (상용 수준 — 이게 기본)
+
+이미지 3장 전환은 소리 크기만 따라가 '열렸다 닫혔다'만 한다 → 사용자가 "상용화하기엔 너무 어색"하다고 했다.
+대사마다 **SadTalker(Apache-2.0)** 로 입·턱 움직임 영상을 미리 만들어, 앱이 그 대사를 말할 때 입 상자에만 겹쳐 재생한다.
+
+- 생성: `python3 tools/portrait-talk.py <id>` — cast에 연결된 상대 대사 전부, 증분. 대사 1개 ≈ 3분(M1, MPS), ≈ 25KB
+- 준비(최초 1회): `~/.cache/everyenglish-talker/SadTalker` + Python 3.10 venv + 체크포인트. 이 맥에서 고친 것:
+  basicsr `functional_tensor` import, `setuptools<70`(pkg_resources), MPS 패치(`inference.py` EE_MPS, facerender `.type()` → `_as_type`)
+- **GFPGAN 얼굴 보정은 쓰지 않는다**(일부 구성요소 라이선스가 다름, 픽사풍엔 불필요)
+- 앱: `portrait.js` `startVideo` — `videos[녹음파일명]`이 있으면 영상, 없으면 아래의 이미지 전환으로 대신. 영상은 무음 인라인이라 iPhone 자동재생 OK, 녹음 재생 시각과 0.08초 넘게 어긋나면 맞춘다
+- 확인: 영상이 입 상자에 제자리로 겹치는지 — 페이지 안에서 canvas로 base + video 합성해 본다(스크린샷은 느려서 입 닫힌 순간만 찍힌다)
+
 ## 입 모양 기준 (사용자가 '입이 부자연스럽다'고 한 뒤 정한 것)
 
 - **입은 섞지 않고 한 장씩 바꾼다** (`portrait.js` `pickMouth`: 닫힘/살짝/벌림, 히스테리시스 + 70ms 유지). 반투명으로 섞으면 입술이 이중으로 보이고, 검은 입이 옅게 깔려 '콧수염 얼룩'처럼 보였다
