@@ -58,8 +58,9 @@
                 v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.setAttribute("muted", "");
                 v.preload = "auto";
                 var b = d.videoBox;
-                v.style.cssText = "left:" + (b.x0 * 100) + "%;top:" + (b.y0 * 100) + "%;width:" + ((b.x1 - b.x0) * 100) + "%;height:" +
-                    ((b.y1 - b.y0) * 100) + "%;inset:auto;opacity:0;" + maskCSS({ x: 0.5, y: 0.5, rx: 0.5, ry: 0.5 }, 62);
+                // 주의: 'inset'은 left/top을 함께 덮어쓴다 → 반드시 먼저 쓴다(뒤에 쓰면 영상이 왼쪽 위 구석으로 간다 — 실제로 났던 버그)
+                v.style.cssText = "inset:auto;left:" + (b.x0 * 100) + "%;top:" + (b.y0 * 100) + "%;width:" + ((b.x1 - b.x0) * 100) + "%;height:" +
+                    ((b.y1 - b.y0) * 100) + "%;opacity:0;" + maskCSS({ x: 0.5, y: 0.5, rx: 0.5, ry: 0.5 }, 62);
                 els.frame.insertBefore(v, els.blink || null);
                 els.video = v;
             }
