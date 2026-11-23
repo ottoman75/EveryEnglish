@@ -164,11 +164,16 @@
             cleanup.push(function () { alive = false; Speech.stopSpeaking(); });
 
             host.innerHTML =
-                '<div class="stage"><div class="step-label">💬 롤플레이 ' + (step.i + 1) + " / " + ch.dialogues.length + "</div>" +
+                // 롤플레이: 화면 높이에 맞춘 세로 배치 — 캐릭터는 위에 고정, 대화만 그 아래에서 스크롤
+                '<div class="stage scene-layout"><div class="step-label">💬 롤플레이 ' + (step.i + 1) + " / " + ch.dialogues.length + "</div>" +
                 '<div class="scene-head"><b>' + esc(scene.title) + "</b><span>📍 " + esc(scene.setting) + "</span></div>" +
                 '<div class="avatar-host"></div>' +
                 '<div class="chat" aria-live="polite"></div><div class="composer-host"></div></div>';
             var chat = host.querySelector(".chat");
+            // 대화 영역 안에서만 맨 아래로 (scrollIntoView는 페이지 전체를 움직여 캐릭터가 밀려난다)
+            function scrollChat() {
+                requestAnimationFrame(function () { chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" }); });
+            }
             var avatar = root.EEAvatar ? root.EEAvatar.attach(host.querySelector(".avatar-host")) : null;
             if (avatar) {
                 root.__eeAvatar = avatar; // 점검용
@@ -185,7 +190,7 @@
                     '<div class="en">' + esc(line.en) + '</div><div class="ko hidden" data-act="reveal" title="탭해서 해석 보기">' + esc(line.ko) + "</div>" +
                     '<button class="replay" data-speak="' + esc(line.en) + '" data-who="partner" aria-label="다시 듣기">' + icon("speaker", 'width="18" height="18"') + "</button></div>";
                 chat.appendChild(m);
-                m.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                scrollChat();
             }
 
             function typing() {
@@ -267,7 +272,7 @@
                         note: r.verdict === "wrong" && firstTry ? "📌 오답노트에 담았어요. 내일 다시 물어볼게요." : ""
                     });
                     if (r.verdict !== "correct") Speech.speak(r.answer);
-                    m.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                    scrollChat();
 
                     var autoTimer = r.verdict === "correct" ? setTimeout(proceed, AUTO_NEXT_MS) : null;
                     function proceed() {
