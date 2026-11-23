@@ -95,7 +95,8 @@ const box = { window: {} };
 vm.createContext(box);
 vm.runInContext(readFileSync(manifestPath, "utf8"), box);
 const P = box.window.EE_PORTRAITS || { characters: {}, cast: {} };
-P.characters[id] = Object.assign({}, found, {
+// 기존 항목의 입 영상(videos·videoBox) 등은 유지하고, 이미지·영역만 갱신 — 다시 등록해도 영상 목록이 사라지지 않게
+P.characters[id] = Object.assign({}, P.characters[id] || {}, found, {
     mouth: result.mouth, eyes: result.eyes, eyeL: result.eyeL, eyeR: result.eyeR, aspect: result.aspect,
     credit: opts.credit !== undefined ? opts.credit : (P.characters[id] && P.characters[id].credit) || ""
 });

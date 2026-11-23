@@ -29,6 +29,8 @@ STEPS = 30
 STYLE = ("3D animated character portrait, Pixar-like stylized render, soft subsurface skin, large expressive eyes, "
          "front-facing, looking straight at the camera, centered, head and shoulders and upper chest, "
          "friendly relaxed closed-mouth smile, warm soft key light, shallow depth of field, high quality, detailed")
+STYLE_SHORT = ("Pixar-style 3D animated portrait, head and shoulders, facing camera, friendly closed-mouth smile, "
+               "soft warm light, blurred background")
 NEGATIVE = ("text, logo, watermark, hands, fingers, multiple people, cropped head, side view, profile, open mouth, "
             "teeth, deformed face, extra eyes, blurry face, photo, realistic photo, anime, lowres, jpeg artifacts, "
             # 얼굴을 크게 요청하면 회색 스튜디오·흑백 점토 모형이 잘 나온다(2026-11-21 Host 시험) → 금지
@@ -203,6 +205,36 @@ def cmd_blink(a):
     print("saved", p, flush=True)
 
 
+def cmd_plan(a):
+    """assets/portraits/cast-plan.json 의 인물들 기본 이미지를 한 번에(모델은 한 번만 로드). 이미 있으면 건너뛴다"""
+    import json
+    plan = json.load(open(os.path.join(ROOT, "assets", "portraits", "cast-plan.json"), encoding="utf-8"))
+    pipe, dev = load_pipe()
+    for c in plan["characters"]:
+        if a.only and c["id"] not in a.only:
+            continue
+        for seed in a.seeds:
+            p = os.path.join(out_dir(c["id"]), f"base_{seed}.png")
+            if os.path.exists(p):
+                continue
+            # SDXL 텍스트 인코더는 앞쪽 77토큰만 읽는다 → 인물(성별 포함)을 맨 앞, 배경, 짧은 스타일 순.
+            # 긴 스타일을 앞에 두었더니 인물 묘사가 잘려 26명이 거의 같은 남자 얼굴로 나왔다(2026-11-23)
+            gender = "a woman" if c["id"].endswith("-f") else "a man"
+            prompt = f"{gender}, {c['character']}, in {c['background']}, {STYLE_SHORT}"
+            ntok = len(pipe.tokenizer(prompt).input_ids)
+            if ntok > 77:
+                print(f"  ⚠️ {c['id']} 프롬프트 {ntok}토큰 — 77 넘는 부분은 무시된다", flush=True)
+            seed = seed + (sum(map(ord, c["id"])) % 1000)      # 인물마다 다른 시드 — 같은 시드는 같은 얼굴을 낳는다
+            p = os.path.join(out_dir(c["id"]), f"base_{seed}.png")
+            if os.path.exists(p):
+                continue
+            g = torch.Generator(device="cpu").manual_seed(seed)
+            img = pipe(prompt=prompt, negative_prompt=NEGATIVE, width=W, height=H, num_inference_steps=STEPS,
+                       guidance_scale=6.5, generator=g).images[0]
+            img.save(p)
+            print("saved", p, flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -220,8 +252,11 @@ def main():
     k.add_argument("--eyeL", required=True); k.add_argument("--eyeR", required=True)
     k.add_argument("--grow-x", dest="grow_x", type=float, default=1.45)
     k.add_argument("--grow-y", dest="grow_y", type=float, default=2.0)
+    pl = sub.add_parser("plan")
+    pl.add_argument("--seeds", type=int, nargs="+", default=[44])
+    pl.add_argument("--only", nargs="+")
     a = ap.parse_args()
-    {"base": cmd_base, "variants": cmd_variants, "blink": cmd_blink}[a.cmd](a)
+    {"base": cmd_base, "variants": cmd_variants, "blink": cmd_blink, "plan": cmd_plan}[a.cmd](a)
 
 
 if __name__ == "__main__":

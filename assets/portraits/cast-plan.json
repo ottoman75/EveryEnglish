@@ -1,0 +1,214 @@
+{
+  "_doc": "초상화 인물 계획 — id, 맡는 배역(cast.js 키), 생성 묘사. tools/portrait-generate.py plan 이 읽는다. 성별은 cast.js와 일치해야 한다",
+  "characters": [
+    {
+      "id": "emma-f",
+      "cast": [
+        "self-intro:Emma"
+      ],
+      "character": "cheerful young woman in her late 20s, wavy shoulder-length hair, casual blouse",
+      "background": "a lively house party living room at night with warm fairy lights and blurred guests"
+    },
+    {
+      "id": "server-f",
+      "cast": [
+        "restaurant:Server"
+      ],
+      "character": "smiling young woman server in her 20s, hair in a bun, white shirt and black apron",
+      "background": "a cozy Italian restaurant dining room by the window at night, candles and warm lights"
+    },
+    {
+      "id": "passerby-f",
+      "cast": [
+        "directions:Passerby"
+      ],
+      "character": "kind woman in her 40s, short bob haircut, light beige trench coat",
+      "background": "a sunny city street sidewalk with shops and a crosswalk"
+    },
+    {
+      "id": "station-m",
+      "cast": [
+        "directions:Station Staff"
+      ],
+      "character": "helpful subway station staff man in his 30s, navy uniform jacket and cap",
+      "background": "a bright subway station with ticket machines and signboards"
+    },
+    {
+      "id": "driver-m",
+      "cast": [
+        "directions:Bus Driver"
+      ],
+      "character": "friendly bus driver man in his 50s, gray hair, light blue uniform shirt, facing the camera directly",
+      "background": "the inside of a city bus behind him, softly blurred"
+    },
+    {
+      "id": "sales-f",
+      "cast": [
+        "shopping:Sales Associate"
+      ],
+      "character": "stylish young woman sales associate in her 20s, long straight hair, black top with a name tag",
+      "background": "a bright clothing store with racks of shirts"
+    },
+    {
+      "id": "cashier-m",
+      "cast": [
+        "shopping:Cashier"
+      ],
+      "character": "young man cashier in his 20s, short curly hair, store polo shirt",
+      "background": "a clothing store checkout counter with shopping bags"
+    },
+    {
+      "id": "service-f",
+      "cast": [
+        "shopping:Customer Service"
+      ],
+      "character": "calm customer service woman in her 30s, hair tied back, navy blazer",
+      "background": "a department store customer service desk"
+    },
+    {
+      "id": "reception-f",
+      "cast": [
+        "hotel:Receptionist"
+      ],
+      "character": "elegant hotel receptionist woman in her 30s, hair in a neat bun, dark uniform blazer with a scarf",
+      "background": "an elegant hotel front desk lobby at night with warm lamps"
+    },
+    {
+      "id": "frontdesk-m",
+      "cast": [
+        "hotel:Front Desk",
+        "phone-call:Front Desk"
+      ],
+      "character": "polite front desk man in his 30s, neat short hair, dark blazer and tie",
+      "background": "a hotel back office front desk with a phone and soft lighting"
+    },
+    {
+      "id": "agent-f",
+      "cast": [
+        "airport:Agent"
+      ],
+      "character": "airline check-in agent woman in her 30s, hair in a bun, navy airline uniform with a red scarf",
+      "background": "a bright airport check-in counter with departure boards"
+    },
+    {
+      "id": "officer-m",
+      "cast": [
+        "airport:Officer"
+      ],
+      "character": "immigration officer man in his 40s, short hair, light blue uniform shirt with badge, calm and kind",
+      "background": "an airport immigration booth hall"
+    },
+    {
+      "id": "jessica-f",
+      "cast": [
+        "small-talk:Jessica"
+      ],
+      "character": "friendly coworker woman in her late 20s, long hair, cozy cardigan",
+      "background": "an office kitchenette with a coffee machine in morning light"
+    },
+    {
+      "id": "mark-m",
+      "cast": [
+        "small-talk:Mark"
+      ],
+      "character": "friendly neighbor man in his 30s, short beard, rain jacket with slightly wet hair",
+      "background": "an apartment building lobby on a rainy evening"
+    },
+    {
+      "id": "clinic-f",
+      "cast": [
+        "doctor:Receptionist"
+      ],
+      "character": "gentle clinic receptionist woman in her 30s, ponytail, light teal scrubs",
+      "background": "a clean walk-in clinic reception desk"
+    },
+    {
+      "id": "doctor-m",
+      "cast": [
+        "doctor:Doctor"
+      ],
+      "character": "kind doctor man in his 40s, glasses, white coat and stethoscope",
+      "background": "a bright medical examination room"
+    },
+    {
+      "id": "pharmacist-f",
+      "cast": [
+        "doctor:Pharmacist"
+      ],
+      "character": "pharmacist woman in her 30s, shoulder-length hair, white coat",
+      "background": "a pharmacy counter with medicine shelves"
+    },
+    {
+      "id": "salon-f",
+      "cast": [
+        "phone-call:Receptionist"
+      ],
+      "character": "stylish hair salon receptionist woman in her 20s, colorful hair clip, black top",
+      "background": "a modern hair salon front desk with mirrors"
+    },
+    {
+      "id": "amy-f",
+      "cast": [
+        "phone-call:Amy"
+      ],
+      "character": "cheerful hair stylist woman in her 30s, wavy hair, black apron",
+      "background": "a bright hair salon with styling chairs"
+    },
+    {
+      "id": "jake-m",
+      "cast": [
+        "making-plans:Jake"
+      ],
+      "character": "easygoing friend man in his late 20s, messy short hair, gray hoodie",
+      "background": "a casual apartment living room in daylight"
+    },
+    {
+      "id": "interviewer-f",
+      "cast": [
+        "job-interview:Interviewer"
+      ],
+      "character": "professional interviewer woman in her 40s, short hair, navy suit",
+      "background": "a modern office meeting room with glass walls"
+    },
+    {
+      "id": "rachel-f",
+      "cast": [
+        "meeting:Rachel"
+      ],
+      "character": "confident team lead woman in her 30s, long dark hair, smart casual blouse",
+      "background": "an office meeting room with a screen showing a project timeline"
+    },
+    {
+      "id": "david-m",
+      "cast": [
+        "meeting:David"
+      ],
+      "character": "thoughtful colleague man in his 30s, short hair, shirt with rolled sleeves",
+      "background": "an office meeting room with a whiteboard"
+    },
+    {
+      "id": "restaurant-m",
+      "cast": [
+        "solving-problems:Restaurant"
+      ],
+      "character": "restaurant staff man in his 30s, chef apron, answering politely",
+      "background": "a busy restaurant kitchen counter"
+    },
+    {
+      "id": "airbnb-f",
+      "cast": [
+        "solving-problems:Host"
+      ],
+      "character": "warm home host woman in her 40s, cozy knit sweater",
+      "background": "a bright cozy home living room"
+    },
+    {
+      "id": "server2-m",
+      "cast": [
+        "solving-problems:Server"
+      ],
+      "character": "young waiter man in his 20s, neat hair, black shirt",
+      "background": "an elegant restaurant dining room at night"
+    }
+  ]
+}
