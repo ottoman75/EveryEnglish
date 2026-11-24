@@ -19,7 +19,7 @@ description: "EveryEnglish 웹앱의 화면·UI·채점·저장 로직(index.htm
 
 ## 채점·오답 원칙
 
-- **음성 인식기는 페이지에 하나만**(`EESpeech.listen`): 새로 만들지 않고 재사용, 끝낼 때는 `stop()`(abort 아님) 한 번만, 다음 시작은 onend(마이크 해제) 뒤. 결과·끝 신호는 그 인식을 돌린 요청에만 전달. 아이폰 사파리는 onend가 늦고 abort로 마이크를 안 놓아 '첫 번째만 인식, 아일랜드 마이크 표시 유지' 버그가 있었다. 재현: `_workspace/ios-sr-test.html`(엄격한 아이폰 흉내 — 직전 방식은 1/3, 현재 3/3). 실기기 진단: 주소에 `?srdebug`
+- **음성 인식은 매번 새 인식기, 단 이전 인식기의 onend 뒤에**(`EESpeech.listen`): 끝낼 때는 `stop()` 한 번(abort 아님), 결과·끝 신호는 그 인식을 돌린 요청에만. 듣기 직전 재생기 정지 + `navigator.audioSession.type="play-and-record"`, 끝나면 `auto`. 아이폰 실기기 로그(`?srdebug`): 재사용한 인식기는 audiostart까지만 오고 결과 없음 / abort로는 마이크를 안 놓음 / onend 지연. 재현: `_workspace/ios-sr-test.html`(세 가지 모두 흉내)
 - 오디오는 `EESpeech`의 공유 요소 하나로만 재생한다(iPhone 자동재생 정책). 화면 코드에서 `new Audio()`를 직접 만들지 않는다.
 - 학습 세션에서는 **문항별 첫 시도만** 점수·오답노트에 반영한다. 다시 시도는 연습이다.
 - `close`(유사도 ≥ 0.8)는 통과로 치되 차이를 보여주고, 사용자가 원하면 오답노트에 저장한다.

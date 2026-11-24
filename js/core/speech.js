@@ -215,27 +215,47 @@
         if (root.EESpeechDebug) root.EESpeechDebug(line);
     }
 
-    function getRec() {
-        if (rec) return rec;
-        rec = new Recognition();
-        rec.lang = "en-US";
-        rec.interimResults = true;
-        rec.maxAlternatives = 1;
-        rec.continuous = false;
-        rec.onstart = function () { recRunning = true; log("start"); };
-        rec.onaudiostart = function () { log("audiostart"); };
-        rec.onspeechstart = function () { log("speechstart"); };
-        rec.onresult = function (e) { if (runSession) runSession.onresult(e); };
-        rec.onerror = function (e) { log("error " + e.error); if (runSession) runSession.onerror(e); };
-        rec.onend = function () {
-            recRunning = false;
+    // 인식기는 매번 새로 만든다(아이폰은 끝난 인식기를 다시 start()하면 audiostart까지만 가고 결과가 없다 — 실기기 로그).
+    // 단, 이전 인식기가 onend로 마이크를 놓은 뒤에 만든다(놓기 전에 만들면 마이크를 못 잡는다).
+    function newRec() {
+        var r = new Recognition();
+        r.lang = "en-US";
+        r.interimResults = true;
+        r.maxAlternatives = 1;
+        r.continuous = false;
+        r.onstart = function () { log("start"); };
+        r.onaudiostart = function () { log("audiostart"); };
+        r.onspeechstart = function () { log("speechstart"); };
+        r.onresult = function (e) { if (r.__session) r.__session.onresult(e); };
+        r.onerror = function (e) { log("error " + e.error); if (r.__session) r.__session.onerror(e); };
+        r.onend = function () {
             log("end");
-            var s = runSession; runSession = null;
+            var s = r.__session; r.__session = null;
+            if (rec === r) { recRunning = false; runSession = null; }
+            restoreAudioSession();
             if (s) s.onend();
             var w = endWaiters; endWaiters = [];
             w.forEach(function (fn) { fn(); });
         };
-        return rec;
+        return r;
+    }
+
+    // 아이폰: 음성을 재생하고 나면 오디오 세션이 '재생 전용'이 되어 다음 녹음에 소리가 안 들어온다
+    // (실기기 로그: audiostart 후 speechstart·결과 없음). 듣는 동안만 '녹음+재생'으로 바꾸고 재생기를 내려놓는다.
+    function prepareAudioForListening() {
+        if (player) {
+            // src는 지우지 않는다 — 공유 재생기의 자동재생 허용(아이폰 첫 탭 잠금 해제)이 풀릴 수 있다
+            try { player.pause(); } catch (e) { /* 무시 */ }
+            log("재생기 정지");
+        }
+        if (synth) synth.cancel();
+        try {
+            if (navigator.audioSession) { navigator.audioSession.type = "play-and-record"; log("audioSession=play-and-record"); }
+        } catch (e) { log("audioSession 실패 " + e.name); }
+    }
+    function restoreAudioSession() {
+        // 녹음+재생 모드로 두면 이후 음성이 수화기(작은 스피커)로 나갈 수 있어 원래대로
+        try { if (navigator.audioSession && navigator.audioSession.type !== "auto") navigator.audioSession.type = "auto"; } catch (e) { /* 무시 */ }
     }
 
     // 지금 돌고 있는 세션이 있으면 정상 종료를 요청하고 onend(또는 시간 초과)를 기다린다
@@ -245,11 +265,11 @@
             var done = false;
             var go = function () { if (!done) { done = true; resolve(); } };
             endWaiters.push(go);
-            requestStop(rec);
+            if (rec) requestStop(rec);
             setTimeout(function () {
                 if (done) return;
                 log("end 대기 초과 → abort");
-                try { rec.abort(); } catch (e) { /* 무시 */ }
+                try { if (rec) rec.abort(); } catch (e) { /* 무시 */ }
                 setTimeout(function () { recRunning = false; go(); }, 300);
             }, END_WAIT_MS);
         });
@@ -261,8 +281,11 @@
         try { r.stop(); } catch (e) { /* 이미 끝남 */ }
     }
 
-    function tryStart(r, session) {
-        try { r.start(); runSession = session; recRunning = true; stopRequested = false; log("start() 호출"); return true; }
+    function tryStart(session) {
+        prepareAudioForListening();
+        var r = newRec();
+        r.__session = session;
+        try { r.start(); rec = r; runSession = session; recRunning = true; stopRequested = false; session.rec = r; log("start() 호출"); return true; }
         catch (e) { log("start() 실패 " + e.name); return false; }
     }
 
@@ -274,7 +297,6 @@
     function listen(onInterim) {
         if (!canListen) return { promise: Promise.reject(new Error("unsupported")), stop: function () {} };
         stopSpeaking();
-        var r = getRec();
         if (current) current.finish();             // 이전 듣기 요청은 마무리
         var finalText = "", interimText = "", settled = false, silenceTimer = null, maxTimer = null;
         var resolveFn, rejectFn;
@@ -286,7 +308,7 @@
                 clearTimeout(silenceTimer); clearTimeout(maxTimer);
                 if (current === session) current = null;
                 // 내가 돌리던 세션이면 마이크 해제 요청(abort 아님 — 아이폰은 abort로 마이크를 놓지 않는다)
-                if (runSession === session && recRunning) requestStop(r);
+                if (runSession === session && recRunning && session.rec) requestStop(session.rec);
                 var text = (finalText || interimText).trim();   // 최종 결과가 없으면 마지막 중간 결과라도
                 if (err && !text) rejectFn(err); else resolveFn(text);
             },
@@ -312,10 +334,10 @@
         current = session;
         maxTimer = setTimeout(function () { session.finish(); }, MAX_MS);
         // 쉬고 있으면 바로(사용자 탭 안에서) 시작, 이전 세션이 남아 있으면 끝나길 기다렸다 시작
-        if (recRunning || !tryStart(r, session)) {
+        if (recRunning || !tryStart(session)) {
             whenIdle().then(function () {
                 if (settled) return;
-                if (!tryStart(r, session)) session.finish(new Error("start-failed"));
+                if (!tryStart(session)) session.finish(new Error("start-failed"));
             });
         }
         return { promise: promise, stop: function () { session.finish(); } };

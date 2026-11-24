@@ -10,8 +10,11 @@ FakeRec.prototype.start = function () {
   if (micOwner && micOwner !== this) return;            // 마이크 사용 중 → 아무 일도 안 일어남
   micOwner = this; this._running = true; var n = starts;
   setTimeout(function () { self.onstart && self.onstart(); }, 30);
+  this._uses = (this._uses || 0) + 1;
+  setTimeout(function () { self.onaudiostart && self.onaudiostart(); }, 40);
   setTimeout(function () {
     if (!self._running || !self.onresult) return;
+    if (self._uses > 1) return;                         // 아이폰 실기기: 재사용한 인식기는 audiostart까지만, 결과 없음
     self.onresult({ resultIndex: 0, results: [{ 0: { transcript: "answer " + n }, isFinal: true, length: 1 }] });
   }, 300);
 };
