@@ -11,11 +11,14 @@ button b { color:var(--accent); } button:disabled { opacity:.5; }
 pre { white-space:pre-wrap; background:#000; color:#9f9; padding:10px; border-radius:10px; font:12px/1.4 ui-monospace,monospace; min-height:120px; }
 </style></head><body>
 <h1>🎙️ 음성 인식 진단</h1>
-<p>각 버튼을 <b>3번씩</b> 눌러 매번 "hello there" 라고 말해 주세요. 끝나면 '기록 복사'를 눌러 대화창에 붙여넣어 주세요.</p>
+<p>보이는 버튼을 <b>3번</b> 눌러 매번 "hello there" 라고 말해 주세요. 끝나면 '기록 복사'를 눌러 대화창에 붙여넣어 주세요.</p>
 <button data-t="A"><b>A</b> 앱 방식 그대로</button>
 <button data-t="B"><b>B</b> 원어민 음성을 들은 직후 인식 (소리 재생 → 인식)</button>
 <button data-t="C"><b>C</b> 마이크 예열 후 인식 (getUserMedia → 인식)</button>
 <button data-t="D"><b>D</b> 아무 처리 없이 기본 음성 인식</button>
+<button data-t="E"><b>E</b> 인식할 때마다 새 문서(iframe)에서</button>
+<button data-t="F"><b>F</b> 마이크를 켜 둔 채로 인식</button>
+<button data-t="G"><b>G</b> 인식을 끄지 않고 계속 켜 두기</button>
 <button id="copy">📋 기록 복사</button>
 <pre id="log"></pre>
 <script src="../js/data/audio-manifest.js"></script>
@@ -26,6 +29,50 @@ function L(s) { var t = (performance.now() / 1000).toFixed(1) + "s " + s; lines.
 window.EESpeechDebug = function (line) { lines.push("   · " + line); out.textContent = lines.join("\n"); };
 L(navigator.userAgent.replace(/^Mozilla\/5.0 /, ""));
 var busy = false;
+// ?only=E 처럼 열면 그 버튼만 보인다 — 방식마다 새로 연 페이지에서 시험하기 위해
+var only = (/[?&]only=([A-Z])/.exec(location.search) || [])[1];
+if (only) document.querySelectorAll("button[data-t]").forEach(function (b) { if (b.dataset.t !== only) b.style.display = "none"; });
+
+// E: 미리 만들어 둔 새 iframe의 인식기를 탭 안에서 바로 시작
+var frame = null;
+function makeFrame() {
+  frame = document.createElement("iframe"); frame.src = "sr-frame.html?" + Date.now();
+  frame.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;border:0;left:-10px";
+  document.body.appendChild(frame);
+}
+makeFrame();
+function rawWith(tag, R, opts) {
+  opts = opts || {};
+  return new Promise(function (resolve) {
+    var r = new R(), txt = "", done = false;
+    var fin = function (why) { if (done) return; done = true; L(tag + " 결과: \"" + txt + "\" (" + why + ")"); resolve(); };
+    r.lang = "en-US"; r.interimResults = true;
+    ["start","audiostart","speechstart","speechend","audioend"].forEach(function (k) { r["on" + k] = function () { L("   · " + k); }; });
+    r.onresult = function (e) { txt = ""; for (var i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript; L("   · result \"" + txt + "\""); };
+    r.onerror = function (e) { L("   · error " + e.error); };
+    r.onend = function () { fin("end"); };
+    try { r.start(); } catch (e) { L(tag + " start 실패 " + e.name); fin("start 실패"); }
+    setTimeout(function () { try { r.stop(); } catch (e) {} }, 7000);
+    setTimeout(function () { fin("시간 초과"); }, 11000);
+  });
+}
+
+// G: 인식기 하나를 continuous로 계속 켜 두고, 버튼을 누른 뒤 들어온 결과만 그 시도의 답으로
+var gRec = null, gAlive = false, gMark = 0, gText = "";
+function gStart() {
+  var R = window.SpeechRecognition || window.webkitSpeechRecognition;
+  gRec = new R(); gRec.lang = "en-US"; gRec.continuous = true; gRec.interimResults = true;
+  gRec.onstart = function () { gAlive = true; L("   · G start"); };
+  gRec.onaudiostart = function () { L("   · G audiostart"); };
+  gRec.onerror = function (e) { L("   · G error " + e.error); };
+  gRec.onend = function () { gAlive = false; L("   · G end (세션 종료)"); };
+  gRec.onresult = function (e) {
+    var t = ""; for (var i = gMark; i < e.results.length; i++) t += e.results[i][0].transcript;
+    gText = t.trim(); L("   · G result[" + gMark + "~" + (e.results.length - 1) + "] \"" + gText + "\"");
+    gRec.__last = e.results.length;
+  };
+  gRec.start();
+}
 function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 function viaApp(tag) {
@@ -63,7 +110,25 @@ var tests = {
       L("C 마이크 예열 OK"); st.getTracks().forEach(function (t) { t.stop(); });
     }, function (e) { L("C 마이크 예열 실패 " + e.name); }).then(function () { return viaApp("C"); });
   },
-  D: function () { return raw("D"); }
+  D: function () { return raw("D"); },
+  E: function () {
+    var f = frame, R = f.contentWindow && (f.contentWindow.SpeechRecognition || f.contentWindow.webkitSpeechRecognition);
+    if (!R) { L("E iframe 준비 안 됨"); return Promise.resolve(); }
+    return rawWith("E", R).then(function () { f.remove(); makeFrame(); });
+  },
+  F: function () {
+    if (!navigator.mediaDevices) { L("F getUserMedia 없음"); return Promise.resolve(); }
+    return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (st) {
+      L("F 마이크 켬");
+      var R = window.SpeechRecognition || window.webkitSpeechRecognition;
+      return rawWith("F", R).then(function () { st.getTracks().forEach(function (t) { t.stop(); }); L("F 마이크 끔"); });
+    }, function (e) { L("F 마이크 실패 " + e.name); });
+  },
+  G: function () {
+    if (!gAlive) { L("G 세션 시작"); gStart(); }
+    gMark = gRec.__last || 0; gText = "";
+    return wait(6000).then(function () { L("G 결과: \"" + gText + "\" (세션 " + (gAlive ? "유지 중" : "끝남") + ")"); });
+  }
 };
 document.querySelectorAll("button[data-t]").forEach(function (b) {
   b.onclick = function () {
