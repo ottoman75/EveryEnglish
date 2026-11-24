@@ -192,68 +192,133 @@
      * 한 문장 듣기. onInterim으로 중간 결과를 흘려준다.
      * @returns {{ promise: Promise<string>, stop: Function }}
      */
-    // 지금 듣고 있는 인식기 — 하나만 존재해야 한다.
-    // 아이폰 사파리는 결과를 준 뒤에도 onend를 늦게 주거나 안 주는 경우가 있어, 이전 세션이 남아 있으면
-    // 다음 start()가 조용히 실패한다(사용자 보고: '첫 번째만 인식되고 이후 안 됨'). 그래서 종료를 기다리지 않는다.
-    var activeRec = null;
+    /*
+     * 음성 인식 — 인식기는 페이지 전체에서 하나만 만들어 재사용한다.
+     * 아이폰 사파리: (1) 결과 뒤 onend를 늦게/안 준다 (2) abort()해도 마이크를 바로 놓지 않는다
+     * (사용자 보고: 첫 번째 이후 인식 안 됨, 다이내믹 아일랜드에 마이크 표시가 계속 켜짐).
+     * 그래서 새 인식기를 만들지 않고, 끝낼 때는 stop()으로 정상 종료를 요청하고,
+     * 다음 시작은 onend(=마이크 해제)를 받은 뒤에 한다.
+     */
     var SILENCE_MS = 1500;   // 말이 이만큼 멈추면 끝난 것으로 본다
     var MAX_MS = 10000;      // 한 번에 최대 10초
+    var END_WAIT_MS = 1500;  // 이전 세션 종료(onend)를 기다리는 최대 시간
+    var rec = null, recRunning = false, current = null, endWaiters = [];
+    var stopRequested = false;   // stop()은 세션당 한 번만 — 두 번 보내면 onend가 두 번 와서 다음 요청을 끝내 버린다
+    var runSession = null;   // 지금 인식기를 '돌리고 있는' 요청 — 결과·끝 신호는 이 요청에만 보낸다
+                             // (늦게 온 이전 onend가 새 요청을 끝내 버리는 문제가 있었다)
+    var debugLog = [];
 
-    function release(rec) {
-        if (!rec) return;
-        rec.onresult = rec.onerror = rec.onend = null;
-        try { rec.abort(); } catch (e) { /* 이미 끝남 */ }
-        if (activeRec === rec) activeRec = null;
+    function log(msg) {
+        var line = (performance.now() / 1000).toFixed(1) + "s " + msg;
+        debugLog.push(line);
+        if (debugLog.length > 40) debugLog.shift();
+        if (root.EESpeechDebug) root.EESpeechDebug(line);
+    }
+
+    function getRec() {
+        if (rec) return rec;
+        rec = new Recognition();
+        rec.lang = "en-US";
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+        rec.continuous = false;
+        rec.onstart = function () { recRunning = true; log("start"); };
+        rec.onaudiostart = function () { log("audiostart"); };
+        rec.onspeechstart = function () { log("speechstart"); };
+        rec.onresult = function (e) { if (runSession) runSession.onresult(e); };
+        rec.onerror = function (e) { log("error " + e.error); if (runSession) runSession.onerror(e); };
+        rec.onend = function () {
+            recRunning = false;
+            log("end");
+            var s = runSession; runSession = null;
+            if (s) s.onend();
+            var w = endWaiters; endWaiters = [];
+            w.forEach(function (fn) { fn(); });
+        };
+        return rec;
+    }
+
+    // 지금 돌고 있는 세션이 있으면 정상 종료를 요청하고 onend(또는 시간 초과)를 기다린다
+    function whenIdle() {
+        return new Promise(function (resolve) {
+            if (!recRunning) { resolve(); return; }
+            var done = false;
+            var go = function () { if (!done) { done = true; resolve(); } };
+            endWaiters.push(go);
+            requestStop(rec);
+            setTimeout(function () {
+                if (done) return;
+                log("end 대기 초과 → abort");
+                try { rec.abort(); } catch (e) { /* 무시 */ }
+                setTimeout(function () { recRunning = false; go(); }, 300);
+            }, END_WAIT_MS);
+        });
+    }
+
+    function requestStop(r) {
+        if (stopRequested) return;
+        stopRequested = true;
+        try { r.stop(); } catch (e) { /* 이미 끝남 */ }
+    }
+
+    function tryStart(r, session) {
+        try { r.start(); runSession = session; recRunning = true; stopRequested = false; log("start() 호출"); return true; }
+        catch (e) { log("start() 실패 " + e.name); return false; }
     }
 
     /**
      * 한 문장 듣기. onInterim으로 중간 결과를 흘려준다.
-     * 최종 결과·침묵·최대 시간 중 먼저 오는 것으로 끝내고, onend를 기다리지 않는다.
+     * 최종 결과·침묵·최대 시간 중 먼저 오는 것으로 끝내고, 끝낼 때는 stop()으로 마이크를 놓는다.
      * @returns {{ promise: Promise<string>, stop: Function }}
      */
     function listen(onInterim) {
         if (!canListen) return { promise: Promise.reject(new Error("unsupported")), stop: function () {} };
         stopSpeaking();
-        release(activeRec);                       // 남아 있는 이전 세션을 먼저 정리
-        var rec = new Recognition();
-        rec.lang = "en-US";
-        rec.interimResults = true;
-        rec.maxAlternatives = 1;
-        rec.continuous = false;
-        activeRec = rec;
+        var r = getRec();
+        if (current) current.finish();             // 이전 듣기 요청은 마무리
         var finalText = "", interimText = "", settled = false, silenceTimer = null, maxTimer = null;
         var resolveFn, rejectFn;
         var promise = new Promise(function (resolve, reject) { resolveFn = resolve; rejectFn = reject; });
-
-        function finish(err) {
-            if (settled) return;
-            settled = true;
-            clearTimeout(silenceTimer); clearTimeout(maxTimer);
-            var text = (finalText || interimText).trim();   // 최종 결과가 없으면 마지막 중간 결과라도
-            release(rec);
-            if (err && !text) rejectFn(err); else resolveFn(text);
+        var session = {
+            finish: function (err) {
+                if (settled) return;
+                settled = true;
+                clearTimeout(silenceTimer); clearTimeout(maxTimer);
+                if (current === session) current = null;
+                // 내가 돌리던 세션이면 마이크 해제 요청(abort 아님 — 아이폰은 abort로 마이크를 놓지 않는다)
+                if (runSession === session && recRunning) requestStop(r);
+                var text = (finalText || interimText).trim();   // 최종 결과가 없으면 마지막 중간 결과라도
+                if (err && !text) rejectFn(err); else resolveFn(text);
+            },
+            onresult: function (e) {
+                var interim = "", gotFinal = false;
+                for (var i = e.resultIndex; i < e.results.length; i++) {
+                    var t = e.results[i][0].transcript;
+                    if (e.results[i].isFinal) { finalText += t; gotFinal = true; } else interim += t;
+                }
+                interimText = (finalText + " " + interim).trim();
+                log("result " + (gotFinal ? "final" : "interim") + " \"" + interimText.slice(0, 30) + "\"");
+                if (onInterim) onInterim(interimText);
+                if (gotFinal && !interim) { session.finish(); return; }
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(function () { session.finish(); }, SILENCE_MS);
+            },
+            onerror: function (e) {
+                if (e.error === "no-speech" || e.error === "aborted") session.finish();
+                else session.finish(new Error(e.error));
+            },
+            onend: function () { session.finish(); }
+        };
+        current = session;
+        maxTimer = setTimeout(function () { session.finish(); }, MAX_MS);
+        // 쉬고 있으면 바로(사용자 탭 안에서) 시작, 이전 세션이 남아 있으면 끝나길 기다렸다 시작
+        if (recRunning || !tryStart(r, session)) {
+            whenIdle().then(function () {
+                if (settled) return;
+                if (!tryStart(r, session)) session.finish(new Error("start-failed"));
+            });
         }
-
-        rec.onresult = function (e) {
-            var interim = "", gotFinal = false;
-            for (var i = e.resultIndex; i < e.results.length; i++) {
-                var t = e.results[i][0].transcript;
-                if (e.results[i].isFinal) { finalText += t; gotFinal = true; } else interim += t;
-            }
-            interimText = (finalText + " " + interim).trim();
-            if (onInterim) onInterim(interimText);
-            if (gotFinal && !interim) { finish(); return; }          // 최종 결과 → 바로 끝(onend를 기다리지 않음)
-            clearTimeout(silenceTimer);
-            silenceTimer = setTimeout(function () { finish(); }, SILENCE_MS);
-        };
-        rec.onerror = function (e) {
-            if (e.error === "no-speech" || e.error === "aborted") finish();
-            else finish(new Error(e.error));
-        };
-        rec.onend = function () { finish(); };
-        maxTimer = setTimeout(function () { finish(); }, MAX_MS);
-        try { rec.start(); } catch (e) { release(rec); return { promise: Promise.reject(e), stop: function () {} }; }
-        return { promise: promise, stop: function () { finish(); } };
+        return { promise: promise, stop: function () { session.finish(); } };
     }
 
     root.EESpeech = {
@@ -262,6 +327,7 @@
         listen: listen,
         canSpeak: !!synth || Object.keys(manifest.clips).length > 0,
         canListen: canListen,
+        debugLog: function () { return debugLog.slice(); },
         hasRecordedAudio: function () { return Object.keys(manifest.clips).length > 0; },
         hasClip: function (text) { return !!clipFor(text); },
         voices: englishVoices,
@@ -269,5 +335,21 @@
         off: function (type, fn) { speechListeners[type] = speechListeners[type].filter(function (f) { return f !== fn; }); },
         partnerVoice: function (speakerKey) { return (manifest.speakers || {})[speakerKey] || null; },
         voiceScore: voiceScore
+    };
+})(window);
+
+/* 음성 인식 진단: 주소에 ?srdebug 를 붙이면 화면 아래에 인식 과정(start/audiostart/result/end/error)을 표시 — 실기기 문제 확인용 */
+(function (root) {
+    if (!/[?&]srdebug/.test(root.location.search)) return;
+    var box = null;
+    root.EESpeechDebug = function (line) {
+        if (!box) {
+            box = document.createElement("pre");
+            box.style.cssText = "position:fixed;left:6px;right:6px;bottom:6px;max-height:30vh;overflow:auto;z-index:9999;margin:0;" +
+                "padding:8px;border-radius:10px;background:rgba(0,0,0,.82);color:#9f9;font:11px/1.35 ui-monospace,monospace;pointer-events:none";
+            document.body.appendChild(box);
+        }
+        box.textContent += line + "\n";
+        box.scrollTop = box.scrollHeight;
     };
 })(window);
