@@ -186,7 +186,7 @@
         if (synth) synth.cancel();
     }
 
-    var canListen = !!Recognition && (root.isSecureContext !== false);
+    var canListen = (!!Recognition || !!(root.navigator.mediaDevices && root.EEWhisper)) && (root.isSecureContext !== false);
 
     /**
      * 한 문장 듣기. onInterim으로 중간 결과를 흘려준다.
@@ -308,7 +308,23 @@
      * 최종 결과·침묵·최대 시간 중 먼저 오는 것으로 끝내고, 끝낼 때는 stop()으로 마이크를 놓는다.
      * @returns {{ promise: Promise<string>, stop: Function }}
      */
+    // 아이폰·아이패드는 웹 음성 인식이 페이지당 첫 번째만 동작한다(실기기 확인) → 폰 안 받아쓰기(EEWhisper)
+    // 주소에 ?stt=web / ?stt=whisper 로 강제할 수 있다(시험용)
+    var sttParam = (/[?&]stt=(web|whisper)/.exec(root.location.search) || [])[1];
+    var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    var useWhisper = sttParam ? sttParam === "whisper" : (isIOS || !Recognition);
+
+    // 입력창이 뜰 때 불러, 폰 안 받아쓰기 모델을 미리 받아 둔다(첫 마이크 탭에서 기다리지 않게)
+    function prepareListening() {
+        if (useWhisper && root.EEWhisper) root.EEWhisper.load().catch(function () { /* 마이크 탭 때 다시 시도 */ });
+    }
+
     function listen(onInterim) {
+        if (useWhisper && root.EEWhisper && root.navigator.mediaDevices) {
+            stopSpeaking();
+            log("whisper 녹음 시작");
+            return root.EEWhisper.listen(onInterim);
+        }
         if (!canListen) return { promise: Promise.reject(new Error("unsupported")), stop: function () {} };
         stopSpeaking();
         if (current) current.finish();             // 이전 듣기 요청은 마무리
@@ -363,6 +379,7 @@
         listen: listen,
         canSpeak: !!synth || Object.keys(manifest.clips).length > 0,
         canListen: canListen,
+        prepareListening: prepareListening,
         debugLog: function () { return debugLog.slice(); },
         hasRecordedAudio: function () { return Object.keys(manifest.clips).length > 0; },
         hasClip: function (text) { return !!clipFor(text); },

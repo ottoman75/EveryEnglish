@@ -198,6 +198,7 @@
         });
         send.addEventListener("click", submit);
         if (mic) {
+            root.EESpeech.prepareListening();
             mic.addEventListener("click", function () {
                 if (session) { stop(); return; }
                 mic.classList.add("listening");

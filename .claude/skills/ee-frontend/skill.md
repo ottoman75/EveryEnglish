@@ -19,7 +19,8 @@ description: "EveryEnglish 웹앱의 화면·UI·채점·저장 로직(index.htm
 
 ## 채점·오답 원칙
 
-- **음성 인식은 매번 새 인식기, 단 이전 인식기의 onend 뒤에**(`EESpeech.listen`): 끝낼 때는 `stop()` 한 번(abort 아님), 결과·끝 신호는 그 인식을 돌린 요청에만. 듣기 직전 재생기 정지 + `navigator.audioSession.type="play-and-record"`, 끝나면 `auto`. 아이폰 실기기 로그(`?srdebug`): 재사용한 인식기는 audiostart까지만 오고 결과 없음 / abort로는 마이크를 안 놓음 / onend 지연. 재현: `_workspace/ios-sr-test.html`(세 가지 모두 흉내)
+- **아이폰·아이패드 음성 입력은 Whisper**(`js/core/stt-whisper.js`, `EESpeech.listen`이 자동 선택, `?stt=web|whisper`로 강제): iOS 웹 음성 인식은 페이지당 첫 번째만 소리를 받는다 — 새 인식기·iframe·마이크 유지·연속 세션 모두 실기기 실패(`tools/sr-lab.html`). 직접 녹음(getUserMedia, 탭 안에서 AudioContext 생성) → 모델 준비 **뒤에** 녹음(준비 중 녹음하면 소리가 끊겨 엉뚱하게 받아씀) → 말소리 없으면 받아쓰지 않음(무음 환각). 입력창이 뜰 때 `prepareListening()`으로 모델 미리 받기. 시험: `_workspace/whisper-app-test.html`(녹음 파일을 마이크처럼 흘려 연속 3회), 실기기 `tools/whisper-lab.html`
+- 다른 기기의 웹 음성 인식: 매번 새 인식기, 이전 인식기 onend 뒤에 시작, 끝낼 때 `stop()` 한 번. 실기기 진단 `?srdebug`
 - 오디오는 `EESpeech`의 공유 요소 하나로만 재생한다(iPhone 자동재생 정책). 화면 코드에서 `new Audio()`를 직접 만들지 않는다.
 - 학습 세션에서는 **문항별 첫 시도만** 점수·오답노트에 반영한다. 다시 시도는 연습이다.
 - `close`(유사도 ≥ 0.8)는 통과로 치되 차이를 보여주고, 사용자가 원하면 오답노트에 저장한다.

@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>whisper app test</title><pre id="out">running</pre>
+<script>
+// 가짜 마이크: 0.6초 무음 → 원어민 녹음 → 무음 을 흘리는 MediaStream (헤드리스 크롬의 가짜 장치는 무음이라)
+var FAKE = "../_workspace/fake-mic.wav";
+navigator.mediaDevices.getUserMedia = async function () {
+  var ctx = new AudioContext(); await ctx.resume();
+  var buf = await ctx.decodeAudioData(await (await fetch(FAKE)).arrayBuffer());
+  var src = ctx.createBufferSource(); src.buffer = buf;
+  var dest = ctx.createMediaStreamDestination(); src.connect(dest); src.start();
+  var st = dest.stream; var stop0 = st.getTracks()[0].stop.bind(st.getTracks()[0]);
+  st.getTracks()[0].stop = function () { stop0(); try { src.stop(); } catch (e) {} ctx.close(); window.__released = (window.__released || 0) + 1; };
+  return st;
+};
+</script>
+<script src="../js/core/stt-whisper.js"></script><script src="../js/core/speech.js"></script>
+<script>
+(async function () {
+  var res = [];
+  for (var i = 0; i < 3; i++) {
+    var st = [], t0 = performance.now(), s = EESpeech.listen(function (t) { if (st[st.length - 1] !== t) st.push(t); });
+    try { var txt = await s.promise; res.push(JSON.stringify(txt) + " " + Math.round(performance.now() - t0) + "ms [" + st.join(" / ") + "]"); }
+    catch (e) { res.push("ERR " + e.message); }
+  }
+  document.getElementById("out").textContent = res.join("\n") + "\n마이크 해제 " + (window.__released || 0) + "회"; document.title = "done";
+})();
+</script>

@@ -321,6 +321,7 @@
                 '<div class="btn-row" style="margin-top:16px">' +
                 (Speech.canListen ? '<button class="btn btn-warm" data-act="record">' + icon("mic", 'width="20" height="20"') + " 따라 말하기</button>" : "") +
                 '<button class="btn ' + (Speech.canListen ? "btn-soft" : "btn-primary") + '" data-act="next">' + (Speech.canListen ? "다음" : "따라 했어요 →") + "</button></div></div>";
+            if (Speech.canListen) Speech.prepareListening();
             play(1);
         }
 
