@@ -203,7 +203,7 @@
                 if (session) { stop(); return; }
                 mic.classList.add("listening");
                 interim.textContent = "듣고 있어요…";
-                session = root.EESpeech.listen(function (t) { interim.textContent = t; });
+                session = root.EESpeech.listen({ hints: opts.hints }, function (t) { interim.textContent = t; });
                 session.promise.then(function (text) {
                     mic.classList.remove("listening");
                     session = null;

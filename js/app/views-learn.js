@@ -139,6 +139,7 @@
                 '<button class="btn btn-primary btn-block" style="margin-top:16px" data-act="next">다음</button></div>';
             var input = UI.answerInput(host.querySelector(".echo"), {
                 placeholder: "예문을 따라 말하거나 입력해 보세요",
+                hints: [x.example],
                 onSubmit: function (text) {
                     var r = G.grade(text, [x.example]);
                     var box = host.querySelector(".echo");
@@ -241,6 +242,7 @@
                     '<button class="hint-toggle" data-act="hint">' + icon("bulb", 'width="16" height="16"') + ' 힌트 <span class="hint-text" hidden>' + esc(line.hint) + "</span></button>" +
                     '<div class="answer-host"></div><div class="fb-host"></div></div>';
                 var input = UI.answerInput(composerHost.querySelector(".answer-host"), {
+                    hints: line.answers,
                     onSubmit: function (text) { submit(text); }
                 });
                 cleanup.push(input.destroy);
@@ -345,6 +347,7 @@
 
             if (d.type === "translate") {
                 var input = UI.answerInput(host.querySelector(".answer-host"), {
+                    hints: d.answers,
                     onSubmit: function (text) {
                         var r = G.grade(text, d.answers);
                         showResult(text, r, host.querySelector(".drill-card"));

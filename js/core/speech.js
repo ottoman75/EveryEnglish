@@ -186,7 +186,7 @@
         if (synth) synth.cancel();
     }
 
-    var canListen = (!!Recognition || !!(root.navigator.mediaDevices && root.EEWhisper)) && (root.isSecureContext !== false);
+    var canListen = !!root.EENativeSpeech || (!!Recognition || !!(root.navigator.mediaDevices && root.EEWhisper)) && (root.isSecureContext !== false);
 
     /**
      * 한 문장 듣기. onInterim으로 중간 결과를 흘려준다.
@@ -319,7 +319,17 @@
         if (useWhisper && root.EEWhisper) root.EEWhisper.load().catch(function () { /* 마이크 탭 때 다시 시도 */ });
     }
 
-    function listen(onInterim) {
+    /**
+     * 한 문장 듣기. listen(onInterim) 또는 listen({ hints }, onInterim)
+     * hints: 이 문항의 정답 문장들 — 앱(iOS 네이티브 인식)에서 인식 힌트로 쓴다
+     */
+    function listen(options, onInterim) {
+        if (typeof options === "function") { onInterim = options; options = {}; }
+        options = options || {};
+        if (root.EENativeSpeech) {
+            stopSpeaking();
+            return root.EENativeSpeech.listen(options, onInterim);
+        }
         if (useWhisper && root.EEWhisper && root.navigator.mediaDevices) {
             stopSpeaking();
             log("whisper 녹음 시작");

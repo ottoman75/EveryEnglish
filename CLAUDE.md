@@ -31,6 +31,8 @@ npm run stamp      # 배포 전: index.html 스크립트 주소에 ?v= 붙여 �
 | `assets/portraits/`, `js/app/portrait.js` | 2D 말하는 초상화(같은 구도 이미지 3장, 입·눈만 교차). 등록은 `node tools/portrait-add.mjs` |
 | `js/core/lipsync.js` | 립싱크 분석 — 3D·2D 공용 |
 | `js/data/cast.js` | 등장인물 성별 — 목소리·아바타 외형이 함께 따름 |
+| `ios/` | iOS 앱: 배포된 웹앱(WKWebView) + 애플 음성 인식 연결(`js/core/native-speech.js` ↔ `SpeechRecognizer.swift`). `cd ios && xcodegen generate` 후 빌드, CLI는 `-derivedDataPath ios/build/DerivedData-cli` |
+| `js/core/stt-whisper.js` | 앱이 아닌 아이폰 사파리의 음성 입력(폰 안 Whisper) |
 | `tests/core.test.js` | grader/srs/plan 단위 테스트 (node:test) |
 | `_workspace/` | 하네스 중간 산출물, 모바일 프리뷰(`mobile.html`) |
 

@@ -169,6 +169,7 @@
                 host.querySelector('[data-act="check-blank"]').addEventListener("click", check);
             } else {
                 var input = UI.answerInput(host.querySelector(".answer-host"), {
+                    hints: n.answers,
                     onSubmit: function (text) {
                         input.destroy();
                         host.querySelector(".answer-host").innerHTML = '<div class="en bold" style="margin-top:14px;font-size:17px">' + esc(text) + "</div>";
@@ -337,7 +338,7 @@
             var meter = host.querySelector(".score-meter");
             btn.innerHTML = icon("stop", 'width="20" height="20"') + " 듣는 중…";
             meter.innerHTML = '<div class="interim">듣고 있어요…</div>';
-            session = Speech.listen(function (t) { meter.innerHTML = '<div class="interim">' + esc(t) + "</div>"; });
+            session = Speech.listen({ hints: [lines[idx].en] }, function (t) { meter.innerHTML = '<div class="interim">' + esc(t) + "</div>"; });
             session.promise.then(function (text) {
                 session = null;
                 btn.innerHTML = icon("mic", 'width="20" height="20"') + " 다시 말하기";
