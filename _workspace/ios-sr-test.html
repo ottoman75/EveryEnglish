@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8"><title>iOS speech recognition test</title><pre id="out">running</pre>
+<script>
+// 아이폰 사파리 흉내: 결과는 주지만 onend를 보내지 않고, 이전 세션이 살아 있으면 새 start()가 조용히 무시된다
+window.isSecureContext = true;
+var live = 0, starts = 0, aborts = 0;
+function FakeRec() {}
+FakeRec.prototype.start = function () {
+  starts++; var self = this;
+  if (live > 0) return;               // 이전 세션이 안 끝났으면 아무 일도 안 일어남 (사파리 증상)
+  live++; this._alive = true;
+  var n = starts, mode = location.hash.slice(1) || "final";
+  setTimeout(function () {
+    if (!self._alive || !self.onresult) return;
+    var r = [{ 0: { transcript: "answer " + n }, isFinal: mode === "final", length: 1 }];
+    self.onresult({ resultIndex: 0, results: r });   // onend는 보내지 않는다
+  }, 300);
+};
+FakeRec.prototype.stop = function () { /* 사파리처럼 아무 반응 없음 */ };
+FakeRec.prototype.abort = function () { aborts++; if (this._alive) { this._alive = false; live--; } };
+window.webkitSpeechRecognition = FakeRec; window.SpeechRecognition = FakeRec;   // 크롬엔 진짜 SpeechRecognition이 있어 둘 다 덮어쓴다
+</script>
+<script src="../js/core/speech.js"></script>
+<script>
+(async function () {
+  var res = [];
+  for (var i = 0; i < 3; i++) {
+    var t0 = performance.now();
+    var s = EESpeech.listen();
+    var txt = await Promise.race([s.promise, new Promise(function (r) { setTimeout(function () { r("TIMEOUT"); }, 4000); })]);
+    res.push(txt + "(" + Math.round(performance.now() - t0) + "ms)");
+  }
+  document.getElementById("out").textContent = JSON.stringify({ results: res, starts: starts, aborts: aborts, liveSessions: live });
+  document.title = "done";
+})();
+</script>
