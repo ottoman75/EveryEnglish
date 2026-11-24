@@ -72,7 +72,9 @@
         el.innerHTML =
             '<div class="greet stage">' +
             '<div><p>' + greeting() + (s.profile.name ? ", " + esc(s.profile.name) + "님" : "") + ' 👋</p><h1>오늘도 30분,<br>영어로 말해볼까요?</h1></div>' +
-            '<div class="streak-pill" title="연속 학습일"><span class="flame">🔥</span><span class="en">' + streak + "</span></div>" +
+            '<div class="greet-actions"><div class="streak-pill" title="연속 학습일"><span class="flame">🔥</span><span class="en">' + streak + "</span></div>" +
+            // 폰 하단 탭에는 '내 정보'가 없어 동기화·설정으로 가는 길이 여기뿐이다(앱에는 주소창도 없다)
+            '<a class="me-btn" href="#/me" aria-label="내 정보 · 설정 · 동기화">' + UI.icon("user") + "</a></div>" +
             "</div>" +
 
             '<section class="today-hero stage">' +

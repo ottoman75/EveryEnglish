@@ -685,3 +685,11 @@ select { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-
     .scene-layout { height: calc(100dvh - 76px - 18px - 48px); }
     .scene-layout .avatar-stage.portrait-mode { height: clamp(220px, 31dvh, 400px); }
 }
+
+/* 홈 인사말 옆: 연속 학습일 + 내 정보(폰에서 설정·동기화로 가는 입구) */
+.greet-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.me-btn {
+    width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow-sm);
+}
+.me-btn svg { width: 20px; height: 20px; }
