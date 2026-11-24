@@ -208,7 +208,21 @@
                              // (늦게 온 이전 onend가 새 요청을 끝내 버리는 문제가 있었다)
     var debugLog = [];
 
+    // 진단 기록 첫 줄: 어떤 코드 버전이 돌고 있는지(폰 캐시로 예전 코드가 도는 경우를 가려낸다)
+    var SCRIPT_VER = (function () {
+        var cs = document.currentScript;
+        var m = cs && /[?&]v=([^&]+)/.exec(cs.src);
+        return m ? m[1] : "dev";
+    })();
+    var loggedHeader = false;
+
     function log(msg) {
+        if (!loggedHeader) {
+            loggedHeader = true;
+            var ios = /OS (\d+)_(\d+)/.exec(navigator.userAgent);
+            log("speech.js v=" + SCRIPT_VER + " · 새인식기방식 · audioSession " + (navigator.audioSession ? "있음" : "없음") +
+                (ios ? " · iOS " + ios[1] + "." + ios[2] : ""));
+        }
         var line = (performance.now() / 1000).toFixed(1) + "s " + msg;
         debugLog.push(line);
         if (debugLog.length > 40) debugLog.shift();

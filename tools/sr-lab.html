@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>음성 인식 진단</title>
+<style>
+:root { --bg:#14122a; --fg:#eee; --card:#221f45; --accent:#ff7a8a; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--fg); font:15px/1.45 -apple-system,system-ui,sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } p { margin:4px 0 12px; color:#bbb; font-size:13px; }
+button { display:block; width:100%; margin:8px 0; padding:14px; border:0; border-radius:12px; background:var(--card); color:var(--fg); font-size:15px; text-align:left; }
+button b { color:var(--accent); } button:disabled { opacity:.5; }
+#copy { background:var(--accent); color:#111; text-align:center; font-weight:700; }
+pre { white-space:pre-wrap; background:#000; color:#9f9; padding:10px; border-radius:10px; font:12px/1.4 ui-monospace,monospace; min-height:120px; }
+</style></head><body>
+<h1>🎙️ 음성 인식 진단</h1>
+<p>각 버튼을 <b>3번씩</b> 눌러 매번 "hello there" 라고 말해 주세요. 끝나면 '기록 복사'를 눌러 대화창에 붙여넣어 주세요.</p>
+<button data-t="A"><b>A</b> 앱 방식 그대로</button>
+<button data-t="B"><b>B</b> 원어민 음성을 들은 직후 인식 (소리 재생 → 인식)</button>
+<button data-t="C"><b>C</b> 마이크 예열 후 인식 (getUserMedia → 인식)</button>
+<button data-t="D"><b>D</b> 아무 처리 없이 기본 음성 인식</button>
+<button id="copy">📋 기록 복사</button>
+<pre id="log"></pre>
+<script src="../js/data/audio-manifest.js"></script>
+<script src="../js/core/speech.js"></script>
+<script>
+var out = document.getElementById("log"), lines = [];
+function L(s) { var t = (performance.now() / 1000).toFixed(1) + "s " + s; lines.push(t); out.textContent = lines.join("\n"); }
+window.EESpeechDebug = function (line) { lines.push("   · " + line); out.textContent = lines.join("\n"); };
+L(navigator.userAgent.replace(/^Mozilla\/5.0 /, ""));
+var busy = false;
+function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+function viaApp(tag) {
+  var s = EESpeech.listen(); var started = performance.now();
+  return Promise.race([s.promise, wait(12000).then(function () { s.stop(); return "TIMEOUT"; })])
+    .then(function (t) { L(tag + " 결과: \"" + t + "\" (" + Math.round(performance.now() - started) + "ms)"); },
+          function (e) { L(tag + " 오류: " + e.message); });
+}
+function raw(tag) {
+  return new Promise(function (resolve) {
+    var R = window.SpeechRecognition || window.webkitSpeechRecognition, r = new R(), txt = "";
+    r.lang = "en-US"; r.interimResults = false;
+    ["start","audiostart","speechstart","speechend","audioend"].forEach(function (k) { r["on" + k] = function () { L("   · " + k); }; });
+    r.onresult = function (e) { txt = e.results[0][0].transcript; L("   · result"); };
+    r.onerror = function (e) { L("   · error " + e.error); };
+    r.onend = function () { L(tag + " 결과: \"" + txt + "\" (end)"); resolve(); };
+    try { r.start(); } catch (e) { L(tag + " start 실패 " + e.name); resolve(); }
+    setTimeout(function () { try { r.stop(); } catch (e) {} }, 8000);
+    setTimeout(resolve, 12000);
+  });
+}
+var tests = {
+  A: function () { return viaApp("A"); },
+  B: function () {
+    var clip = EE_AUDIO.clips["Can you make it with oat milk?"] || Object.values(EE_AUDIO.clips)[0];
+    var a = new Audio("../" + EE_AUDIO.base + clip); a.setAttribute("playsinline", "");
+    L("B 소리 재생…");
+    return a.play().then(function () { return new Promise(function (r) { a.onended = r; setTimeout(r, 6000); }); })
+      .catch(function (e) { L("B 재생 실패 " + e.name); })
+      .then(function () { L("B 재생 끝 → 인식"); return viaApp("B"); });
+  },
+  C: function () {
+    if (!navigator.mediaDevices) { L("C getUserMedia 없음"); return viaApp("C"); }
+    return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (st) {
+      L("C 마이크 예열 OK"); st.getTracks().forEach(function (t) { t.stop(); });
+    }, function (e) { L("C 마이크 예열 실패 " + e.name); }).then(function () { return viaApp("C"); });
+  },
+  D: function () { return raw("D"); }
+};
+document.querySelectorAll("button[data-t]").forEach(function (b) {
+  b.onclick = function () {
+    if (busy) return; busy = true;
+    document.querySelectorAll("button[data-t]").forEach(function (x) { x.disabled = true; });
+    L("── " + b.dataset.t + " 시작 ──");
+    tests[b.dataset.t]().then(function () {
+      busy = false; document.querySelectorAll("button[data-t]").forEach(function (x) { x.disabled = false; });
+    });
+  };
+});
+document.getElementById("copy").onclick = function () {
+  var text = lines.join("\n");
+  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(
+    function () { document.getElementById("copy").textContent = "✅ 복사됨 — 대화창에 붙여넣어 주세요"; },
+    function () { L("복사 실패 — 화면을 캡처해 주세요"); });
+};
+</script>
+</body></html>
